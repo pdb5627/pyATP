@@ -234,15 +234,17 @@ def output_ss_file(LIS_file, SS_file=None, buses=None, phases=('A', 'B', 'C'), R
                 itertools.chain(*[('%s-phase Voltage (Real)' % ph,  
                   '%s-phase Voltage (Imag)' % ph) for ph in phases]),
                 itertools.chain(*[('%s-sequence Voltage (Real)' % ph,  
-                  '%s-sequence Voltage (Imag)' % ph) for ph in ('Zero', 'Positive', 'Negative')]))))
+                  '%s-sequence Voltage (Imag)' % ph) for ph in ('Zero', 'Positive', 'Negative')]),
+                ('Neg. Seq. Unbalance Factor (%%)',))))
             for n, bus in enumerate(buses):
                 sswriter.writerow(list(itertools.chain((bus,), 
                         itertools.chain(*zip(np.real(ph_voltages[:,n]),
                             np.imag(ph_voltages[:,n]))),
                         itertools.chain(*zip(np.real(seq_voltages[:,n]),
-                            np.imag(seq_voltages[:,n]))))))
+                            np.imag(seq_voltages[:,n]))),
+                        (neg_seq_imbalance[n],))))
         
-        sswriter.writerow(['--------']*13)
+            sswriter.writerow(['--------']*13)
         
         
         # Output node voltage results
