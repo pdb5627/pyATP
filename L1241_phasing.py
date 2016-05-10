@@ -149,7 +149,7 @@ print('-'*80)
 print('Without L1241 in the model:')
 print('Phase voltages and negative-sequence imbalance voltage')
 for n, b in enumerate(buses):
-    print(b, ':', np.abs(ph_voltages[:,n].T)/(115e3*np.sqrt(2./3.)), neg_seq_imbalance[0,n])
+    print(b, ':', np.abs(ph_voltages[:,n].T)/(115e3*np.sqrt(2./3.)), neg_seq_imbalance[n])
     
 print('Maximum neg. seq. voltage imbalance:', np.max(neg_seq_imbalance), '%')
 print('Average neg. seq. voltage imbalance:', np.mean(neg_seq_imbalance), '%')
@@ -165,7 +165,7 @@ pyATP.run_ATP(ATP_file)
 ph_voltages, seq_voltages, neg_seq_imbalance = pyATP.process_SS_bus_voltages(LIS_file, buses)
 
 for n, b in enumerate(buses):
-    print(b, ':', np.abs(ph_voltages[:,n].T)/(115e3*np.sqrt(2./3.)), neg_seq_imbalance[0,n])
+    print(b, ':', np.abs(ph_voltages[:,n].T)/(115e3*np.sqrt(2./3.)), neg_seq_imbalance[n])
     
 print('Maximum neg. seq. voltage imbalance:', np.max(neg_seq_imbalance), '%')
 print('Average neg. seq. voltage imbalance:', np.mean(neg_seq_imbalance), '%')
@@ -258,7 +258,7 @@ for r in filtered_results:
     #continue
     
     for n, b in enumerate(buses):
-        print(b, ':', np.abs(ph_voltages[:,n].T)/(115e3*np.sqrt(2./3.)), neg_seq_imbalance[0,n])
+        print(b, ':', np.abs(ph_voltages[:,n].T)/(115e3*np.sqrt(2./3.)), neg_seq_imbalance[n])
     
     phasing_info = lineZ.Pt_list_to_phasing(r[1], str_types, Pos, Phase_list=('A', 'B', 'C'))
     print('Line Sections:')
