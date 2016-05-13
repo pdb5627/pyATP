@@ -602,7 +602,69 @@ def filter_nondominated_results(results, criteria=[impedance_imbalance, neg_seq_
                 # n1 not dominated by any other solution
                 non_dominated.add(n1)
     
-    return [results[n] for n in non_dominated]              
+    return [results[n] for n in non_dominated]
+
+def filter_nondominated_results_multimodel(results, criteria, precompute=False, beat_factor=1.0):
+    ''' A different interface to the nondominated_results function that allows
+        results to be collected in a data structure with multiple models run
+        with the same possible solutions and same criteria to be applied to
+        the model results. If the model has multiple levels of variety, then
+        these can be combined using a tuple, named tuple, string concatenation,
+        etc. Solutions (soln) can be any kind of immutable suitable for indexing.
+        
+        For each model run, the results should be saved as
+        results[soln][model] = (model_results, 
+                                criteria_precompute,
+                                other_info_precompute)
+                                
+        results can be initialized by the following if the solution list is
+        already available, which it generally should be:
+        results = {s: {} for s in soln_list}
+    '''
+    soln_list, c_r = apply_criteria_multimodel(results, criteria)
+    filtered_soln_list = filter_nondominated_results(soln_list, None,
+                                                     precompute=c_r,
+                                                     beat_factor=beat_factor)
+    filtered_results_dict = {}
+    for soln in filtered_soln_list:
+        filtered_results_dict[soln] = results[soln]
+    return filtered_results_dict
+
+def apply_criteria_multimodel(results, criteria, precompute=False):
+    ''' Apply a list of criteria functions to results in two-level dict format.
+        Returns list of solutions and list of evaluated criteria values.
+    '''
+    soln_list = list(results.keys())
+    # Save list of models to ensure we iterate over them in a consistent order.
+    model_list = list(results[soln_list[0]].keys())
+        
+    c_r = []
+    for soln in soln_list:
+        c_r.append([])
+        for model in model_list:
+            if precompute:
+                c_r[-1].extend(results[soln][model][1])
+            else:
+                c_r[-1].extend([c(results[soln][model][0]) for c in criteria])
+    return soln_list, c_r
+    
+def apply_criteria_weighting(results, criteria, model_weights, criteria_weights, precompute=False):
+    ''' Apply a list of criteria functions to results in two-level dict format
+        and then apply a vector of weights to criteria values computed.
+        Returned value will be the solution list and a numpy array of weighted sums.
+    '''
+    soln_list, c_r = apply_criteria_multimodel(results, criteria, precompute=False)
+    weight_vec = [c_wt*m_wt for m_wt, c_wt in itertools.product(model_weights, criteria_weights)]
+    return soln_list, np.array(c_r).dot(weight_vec)
+    
+def weighted_optimum(results, criteria, model_weights, criteria_weights):
+    ''' Applies a list of criteria functions to results in two-level dict
+        format. Criteria are combined using a weighting vector, and the
+        optimum solution is returned.
+    '''
+    soln_list, c_r_weighted = apply_criteria_weighting(results, criteria, model_weights, criteria_weights)
+    idx_optimum = np.argmin(c_r_weighted)
+    return soln_list[idx_optimum]
 
 def count_transpositions(phasing_list, str_types):
     ''' Initial implementation of fuction to count transpositions in a phasing list based
