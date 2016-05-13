@@ -9,7 +9,7 @@ processing.
 import pyATP
 import sys
 import argparse
-
+import numpy as np
 
 
 def main(argv=None):
@@ -98,7 +98,12 @@ def main(argv=None):
         
         logger.info('Reading data from %s...' % LIS_file)    
         SS_file = pyATP.output_ss_file(LIS_file, CSV_file, buses, RMS_scale=True)
-        logger.info('Steady state data saved to %s.' % SS_file)    
+        logger.info('Steady state data saved to %s.' % SS_file)
+        if buses is not None:
+            ph_voltages, seq_voltages, neg_seq_imbalance = pyATP.process_SS_bus_voltages(LIS_file, buses)
+            n_max = np.argmax(neg_seq_imbalance)
+            logger.info('Maximum negative-sequence unbalance factor: %.4f at %s' % 
+                (neg_seq_imbalance[n_max], buses[n_max]))
     except (SystemExit, KeyboardInterrupt):
         raise
     except Exception, e:
