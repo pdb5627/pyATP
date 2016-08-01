@@ -3,6 +3,7 @@ from numpy.linalg import inv, eig, eigh
 #import line_profiler
 
 import cmath, itertools
+from collections import OrderedDict
 
 # Defining the data type may allow use of a smaller, faster data type
 # if the default precision isn't necessary. Or it may allow going with
@@ -603,6 +604,18 @@ def filter_nondominated_results(results, criteria=[impedance_imbalance, neg_seq_
                 non_dominated.add(n1)
     
     return [results[n] for n in non_dominated]
+
+def new_results_dict(soln_list, model_list):
+    ''' Initialize to a new results dict suitable for the multimodel criteria
+        evaluation of this module. Dict is implemented as an ordered dict
+        so that the order of iteration will be guaranteed.
+    '''
+    results_dict = OrderedDict()
+    for soln in soln_list:
+        results_dict[soln] = OrderedDict()
+        for model in model_list:
+            results_dict[soln][model] = None 
+    return results_dict
 
 def filter_nondominated_results_multimodel(results, criteria, precompute=False, beat_factor=1.0):
     ''' A different interface to the nondominated_results function that allows
