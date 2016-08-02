@@ -6,7 +6,7 @@ from __future__ import print_function, unicode_literals
 import pyATP
 import lineZ
 
-import sys, shutil, glob, itertools, codecs, os
+import sys, shutil, glob, itertools, codecs, os, math
 import numpy as np
 np.set_printoptions(linewidth=120)
 
@@ -164,8 +164,8 @@ for c in criteria:
     print(c(r_noL1241, as_str=True))
     
 # Hold results of each model in a dict indexed by the ATP model name
-results_dict = {l: {} for l in all_transitions_list}
-r_base = {'base': {}}
+results_dict = lineZ.new_results_dict(all_transitions_list, atp_filenames)
+r_base = lineZ.new_results_dict(['base'], atp_filenames)
 
 for atp_filename in atp_filenames:
     # =============================================================================
@@ -278,19 +278,24 @@ print('-'*80)
 print('With L1241 in the model, phased as in the model:')
 print('Phase voltages and negative-sequence unbalance voltage')
 for model in atp_filenames:
-    print('Model: %s' % atp_filenames)
-    ph_voltages, seq_voltages, neg_seq_unbalance = r_base['base'][atp_filename][0]
+    print('Model: %s' % model)
+    ph_voltages, seq_voltages, neg_seq_unbalance = r_base['base'][model][0]
 
     for n, b in enumerate(buses):
         print('%6s : %s, %.6f' % (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)), neg_seq_unbalance[n]))
     
     for c in criteria:
-        print(c(r_base['base'][atp_filename][0], as_str=True))
+        print(c(r_base['base'][model][0], as_str=True))
 _, base_weighted_results = lineZ.apply_criteria_weighting(r_base, criteria, model_weights, criteria_weights)
 print('Weighted results: %.4f' % base_weighted_results)
 
 print('-'*80)
-print('Results of best option(s)') 
+print('Results of best option(s)')
+subtitle = 'Weights:'
+subtitle += ', '.join([' %s: %.0f' % (m, m_wt) for m, m_wt in zip(atp_filenames, model_weights)])
+subtitle += '\n'
+subtitle +=  ', '.join(['%s: %.0f' % (f.description, f_wt) for f, f_wt in zip(criteria, criteria_weights)])
+print(subtitle)
 best_soln = {'best': None} 
 #for soln, r in filtered_results_dict.items():
 for soln, wt in sorted(zip(soln_list, weighted_results), key=lambda k: k[1]):
@@ -309,13 +314,13 @@ for soln, wt in sorted(zip(soln_list, weighted_results), key=lambda k: k[1]):
     #for n, b in enumerate(buses):
     #    print('%6s : %s, %.6f' % (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)), neg_seq_unbalance[n]))
     
-    phasing_info = lineZ.Pt_list_to_phasing(soln, str_types, Pos, Phase_list=('A', 'B', 'C'))
-    print('Line Sections:')
-    for n, phasing, s_start, s_end in zip(range(1,len(sections)), phasing_info, sections[:-1], sections[1:]):
-        print(('Mile %.3f: %s' % (s_start[0], s_start[2])) + (' (Transposition)' if n > 1 and sections[n-2][1].rstrip('_*') == sections[n-1][1].rstrip('_*') and r[1][n-1]!=(0, 1, 2) else ''))
-        print('Section %d: %s (%.3f mi)' % (n, Str_names[s_start[1].rstrip('_*')], s_end[0] - s_start[0]))
-        print(phasing)
-    print('Mile %.3f: %s' % (s_end[0], s_end[2]))
+    #phasing_info = lineZ.Pt_list_to_phasing(soln, str_types, Pos, Phase_list=('A', 'B', 'C'))
+    #print('Line Sections:')
+    #for n, phasing, s_start, s_end in zip(range(1,len(sections)), phasing_info, sections[:-1], sections[1:]):
+    #    print(('Mile %.3f: %s' % (s_start[0], s_start[2])) + (' (Transposition)' if n > 1 and sections[n-2][1].rstrip('_*') == sections[n-1][1].rstrip('_*') and r[1][n-1]!=(0, 1, 2) else ''))
+    #    print('Section %d: %s (%.3f mi)' % (n, Str_names[s_start[1].rstrip('_*')], s_end[0] - s_start[0]))
+    #    print(phasing)
+    #print('Mile %.3f: %s' % (s_end[0], s_end[2]))
 
 print('-'*80)
     
@@ -342,9 +347,17 @@ plot_desc = ['%s\n%s (%s)' % (fx.description, mx, fx.units) for mx, fx in plot_l
 
 try:
     import matplotlib.pyplot as plt
+    from scipy.stats import rankdata
 except ImportError:
     sys.exit()
 
+Pt_brad = ((1, 2, 0), (1, 2, 0), (2, 0, 1), (1, 2, 0), (2, 0, 1), (1, 0, 2), (2, 0, 1))
+Brad_results = lineZ.new_results_dict([Pt_brad], model_list)
+Brad_results[Pt_brad] = results_dict[Pt_brad]
+
+nondom_solns = list(filtered_results_dict.keys())
+nondom_wt_results = np.array([weights_results_dict[soln] for soln in nondom_solns])
+nondom_rankings = rankdata(nondom_wt_results)
 
 ncriteria = len(model_list)*len(criteria)
 nplot = 1
@@ -364,8 +377,7 @@ for my in model_list:
                 #print(xvals, yvals)
                 l3 = plt.scatter(xvals, yvals, c='orange', s=150., label='Weighted Best')
                 
-                Pt_brad = ((1, 2, 0), (1, 2, 0), (2, 0, 1), (1, 2, 0), (2, 0, 1), (1, 0, 2), (2, 0, 1))
-                Brad_results = {Pt_brad: results_dict[Pt_brad]}
+
                 xvals = apply_function_to_results(Brad_results, mx, fx)
                 yvals = apply_function_to_results(Brad_results, my, fy)
                 l4 = plt.scatter(xvals, yvals, c='g', s=150., label='Brad\'s Proposed Phasing')
@@ -382,19 +394,20 @@ for my in model_list:
                 #    texts.append(plt.text(x, y, '%s\n%s' % (label[0], label[5]), size=8))
                 #    plt.gca().annotate('%s\n%s' % (label[0], label[5]), xy=(x, y), textcoords='data')
                 
-                xrange = np.max(xvals) - np.min(xvals)
-                yrange = np.max(yvals) - np.min(yvals)
+                x_range = np.max(xvals) - np.min(xvals)
+                y_range = np.max(yvals) - np.min(yvals)
                 m = 0.05
-                plt.xlim([np.min(xvals) - xrange*m, np.max(xvals) + xrange*m])
-                plt.ylim([np.min(yvals) - yrange*m, np.max(yvals) + yrange*m])
+                plt.xlim([np.min(xvals) - x_range*m, np.max(xvals) + x_range*m])
+                plt.ylim([np.min(yvals) - y_range*m, np.max(yvals) + y_range*m])
 
 
                 xvals = apply_function_to_results(filtered_results_dict, mx, fx)
                 yvals = apply_function_to_results(filtered_results_dict, my, fy)
-                # Idea: color by ranking rather than value??                
-                cvals = np.log(np.log(np.array([weights_results_dict[soln] for soln in filtered_results_dict.keys()])))
+                # Idea: color by ranking rather than value??       
+                cvals = nondom_rankings
+                #cvals = np.log(np.log(np.array([weights_results_dict[soln] for soln in filtered_results_dict.keys()])))
                 l2 = plt.scatter(xvals, yvals, c=cvals, cmap='jet',
-                                 s=120., label='Non-dominated solutions')
+                                 s=60., label='Non-dominated solutions')
 
                 plt.tick_params(axis='both', which='major', labelsize='small')
 
@@ -411,13 +424,68 @@ for my in model_list:
                 
                 nplot += 1
 
-plt.gcf().legend((l1, l2, l3, l4, l5), ('Dominated', 'Non-dominated', 'Weighted Best', 'Brad\'s proposal', 'In base model'),
+fig = plt.gcf()
+fig.legend((l1, l2, l3, l4, l5), ('Dominated', 'Non-dominated', 'Weighted Best', 'Brad\'s proposal', 'In base model'),
                  scatterpoints=1, fontsize='small',
-                 #loc=(1.1, 0.5))#, 
-                 bbox_to_anchor=(1, 0.5))
-plt.colorbar()
+                 loc=2,#(1.1, 0.5)),# 
+                 bbox_to_anchor=(0.9, 0.9))
+fig.subplots_adjust(right=0.9)
+cbar_ax = fig.add_axes([0.91, 0.1, 0.02, 0.7])
+fig.colorbar(l2, cax=cbar_ax)
 
+plt.show(block=False)
+
+# =============================================================================
+# Bar plot of weighted results
+
+plt.figure()
+index = np.arange(len(nondom_solns))
+nondom_wt_results, nondom_solns = zip(*sorted(zip(nondom_wt_results, nondom_solns)))
+nondom_wt_results /= nondom_wt_results[0]
+labels = []
+for r in nondom_solns:
+    l = ''.join(['ABC'[i] for i in r[0]])
+    l += '\n'
+    l += 'transp' if r[5] != (1,2,0) else 'non-transp'
+    if r == Pt_brad:
+        l += '\n(Brad\'s)'
+    labels.append(l)
+    
+barw = 0.85
+plt.bar(index, nondom_wt_results, barw)
+ax = plt.gca()
+plt.xticks(index + barw/2, labels)
+low = np.min(nondom_wt_results)
+high = np.max(nondom_wt_results)
+y_range = high-low
+nround = math.floor(math.log10(y_range))
+
+def nfloor(a, decimals=0):
+    return math.floor(a*10**(-1*decimals)) * 10**decimals
+def nceil(a, decimals=0):
+    return math.ceil(a*10**(-1*decimals)) * 10**decimals
+
+plt.ylim([nfloor(low-0.1*(high-low), nround), nceil(high+0.1*(high-low),nround)])
+
+
+rects = ax.patches
+# Now make some labels
+labels = ["%.4f" % wt for wt in nondom_wt_results]
+
+for rect, label in zip(rects, labels):
+    height = rect.get_height()
+    ax.text(rect.get_x() + rect.get_width()/2, height +0.03*(high-low), label, ha='center', va='bottom')
+
+
+subtitle = 'Weights:'
+subtitle += ', '.join([' %s: %.0f' % (m, m_wt) for m, m_wt in zip(model_list, model_weights)])
+subtitle += '\n'
+subtitle +=  ', '.join(['%s: %.0f' % (f.description, f_wt) for f, f_wt in zip(criteria, criteria_weights)])
+plt.suptitle('Weighted Ranking', y=0.975, fontsize=14)
+plt.title(subtitle, fontsize=10)
 plt.show()
+
+
 '''
 
 # =============================================================================
