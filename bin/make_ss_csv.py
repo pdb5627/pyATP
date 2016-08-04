@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+#! /usr/bin/env python
+#  -*- coding: utf-8 -*-
 '''make_ss_csv.py
 
 Outputs steady-state results from ATP LIS file in csv format for easier post-
