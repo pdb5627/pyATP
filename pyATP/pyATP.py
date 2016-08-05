@@ -383,6 +383,24 @@ class LineConstCards(tdc.DataCardStack):
              tdc.DataCardFixedText('BLANK CARD')
             ])
 
+comment_card = tdc.DataCard('A2, A78', ['C ', 'Comment'], fixed_fields=(0,))
+vintage_card = tdc.DataCard('A9, A71', ['$VINTAGE,', 'Flag'], fixed_fields=(0,))
+units_card = tdc.DataCard('A7, A73', ['$UNITS,', 'Flag'], fixed_fields=(0,))
+
+class LineConstPCHCards(tdc.DataCardStack):
+    ''' Stack of cards output by a line constants case, based on three-phase
+        line and the way ATPDraw runs the case.
+    '''
+    def __init__(self):
+        tdc.DataCardStack.__init__(self,
+            [tdc.DataCardRepeat(comment_card),
+             tdc.DataCardOptional(vintage_card),
+             tdc.DataCardOptional(units_card),
+             tdc.DataCardRepeat(tdc.DataCard('I2, 4A6, 3E16.0',
+                     ['PH', 'BUS1', 'BUS2', 'BUS3', 'BUS4', 'R', 'L', 'C']),
+                 vintage_card, name='RLC_params'),
+             units_card])
+
 # Quick and dirty hack to build lib files. Will only work for three-phase lines.
 ATPline_lib_head = ['''KARD  4  4  5  5  7  7
 KARG  1  4  2  5  3  6
