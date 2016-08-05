@@ -17,17 +17,34 @@ alpha = cmath.exp(2./3.*np.pi*1.j)
 
 # Symmetrical component transformation matrix
 # Converts from symmetrical components to phase quantities
-A = np.matrix([[1., 1., 1.], [1., alpha**2, alpha], [1, alpha, alpha**2]], dtype=cdtype)
+A = np.array([[1., 1., 1.], [1., alpha**2, alpha], [1, alpha, alpha**2]],
+         dtype=cdtype)
 A_inv = inv(A)
 Apos = A[:,1]
 
 def ph_to_seq(ph_vec):
     ''' Convert phase quantities to sequence components. '''
-    return A_inv.dot(ph_vec)
+    n_ph = ph_vec.shape[0]
+    A_inv_block = np.kron(np.eye(n_ph // 3), A_inv)
+    if len(ph_vec.shape) is 1 or ph_vec.shape[0] == 1:
+        # Vector case
+        return A_inv_block.dot(ph_vec)
+    else:
+        # Matrix / array case
+        A_block = np.kron(np.eye(n_ph // 3), A)
+        return A_inv_block.dot(ph_vec).dot(A_block)
     
 def seq_to_ph(seq_vec):
     ''' Convert sequence quantities to phase components'''
-    return A.dot(seq_vec)
+    n_ph = seq_vec.shape[-1]
+    A_block = np.kron(np.eye(n_ph // 3), A)
+    if len(seq_vec.shape) is 1 or seq_vec.shape[0] == 1:
+        # Vector case
+        return A_block.dot(seq_vec)
+    else:
+        # Matrix / array case
+        A_inv_block = np.kron(np.eye(n_ph // 3), A)
+        return A_block.dot(seq_vec).dot(A_inv_block)
 
 
 # Define number of phases globally to avoid having to compute it elsewhere,
