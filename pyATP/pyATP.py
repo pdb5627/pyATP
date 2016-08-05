@@ -405,14 +405,15 @@ class LineConstPCHCards(tdc.DataCardStack):
                      ['PH', 'BUS1', 'BUS2', 'BUS3', 'BUS4', 'R', 'L', 'C']),
                  vintage_card, name='RLC_params'),
              units_card],
-             post_read_hook=self._get_ZY)
+             post_read_hook=self._get_ZY_and_ABCD)
         self.Z = None
         self.Y = None
 
     @staticmethod
-    def _get_ZY(pch_card):
-        """ Unbound version of get_ZY for use as callback. """
-        return pch_card.get_ZY()
+    def _get_ZY_and_ABCD(pch_card):
+        """ Callback for reading. """
+        pch_card.get_ZY()
+        pch_card.get_ABCD()
 
     def get_ZY(self):
         """ Convert R, L, C parameters to Z and Y matrices
@@ -438,6 +439,10 @@ class LineConstPCHCards(tdc.DataCardStack):
         self.Z = Z
         self.Y = Y
         return Z, Y
+
+    def get_ABCD(self):
+        self.ABCD = lineZ.ZY_to_ABCD(self.Z, self.Y)
+        return self.ABCD
 
 
 # Quick and dirty hack to build lib files. Will only work for three-phase lines.

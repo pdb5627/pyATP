@@ -12,6 +12,7 @@ import pytest
 
 
 import pyATP
+import lineZ
 import numpy as np
 
 
@@ -106,3 +107,4 @@ def test_parse_card(test_card, card_text, values_dict_list, Z, Y):
             assert_round_equals(test_card.data['RLC_params'][idx][k], v)
     assert_round_equals(test_card.Z, Z)
     assert_round_equals(test_card.Y, Y)
+    assert_round_equals(test_card.ABCD, lineZ.ZY_to_ABCD(Z, Y))
