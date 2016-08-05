@@ -10,11 +10,15 @@ from math import sqrt
 
 import lineZ
 
-try:
-    import numpy as np
-    from numpy.linalg import inv
-except ImportError:
-    pass
+import numpy as np
+from numpy.linalg import inv
+
+# Defining the data type may allow use of a smaller, faster data type
+# if the default precision isn't necessary. Or it may allow going with
+# a larger datatype if more precision is needed.
+nbits = 64
+fdtype = np.dtype('float'+str(nbits))
+cdtype = np.dtype('complex'+str(2*nbits))
     
 # To parse ATP files, the test_data_cards module is used.
 # It is currently under development.
@@ -387,10 +391,11 @@ comment_card = tdc.DataCard('A2, A78', ['C ', 'Comment'], fixed_fields=(0,))
 vintage_card = tdc.DataCard('A9, A71', ['$VINTAGE,', 'Flag'], fixed_fields=(0,))
 units_card = tdc.DataCard('A7, A73', ['$UNITS,', 'Flag'], fixed_fields=(0,))
 
+
 class LineConstPCHCards(tdc.DataCardStack):
-    ''' Stack of cards output by a line constants case, based on three-phase
+    """ Stack of cards output by a line constants case, based on three-phase
         line and the way ATPDraw runs the case.
-    '''
+    """
     def __init__(self):
         tdc.DataCardStack.__init__(self,
             [tdc.DataCardRepeat(comment_card),
@@ -399,7 +404,41 @@ class LineConstPCHCards(tdc.DataCardStack):
              tdc.DataCardRepeat(tdc.DataCard('I2, 4A6, 3E16.0',
                      ['PH', 'BUS1', 'BUS2', 'BUS3', 'BUS4', 'R', 'L', 'C']),
                  vintage_card, name='RLC_params'),
-             units_card])
+             units_card],
+             post_read_hook=self._get_ZY)
+        self.Z = None
+        self.Y = None
+
+    @staticmethod
+    def _get_ZY(pch_card):
+        """ Unbound version of get_ZY for use as callback. """
+        return pch_card.get_ZY()
+
+    def get_ZY(self):
+        """ Convert R, L, C parameters to Z and Y matrices
+            It is assumed that PI parameters are calculated at nominal
+            frequency. """
+        # First compute the number of phases
+        n = len(self.data['RLC_params'])
+        # n = (n_ph+1)*n_ph/2
+        # Solve for n_ph using quadratic formula
+        n_ph = int((sqrt(1+8*n) - 1)/2)
+        Z = np.zeros((n_ph, n_ph), dtype=cdtype)
+        Y = np.zeros((n_ph, n_ph), dtype=cdtype)
+        idx = 0
+        for r in range(n_ph):
+            for c in range(r):
+                # R & L assumed to be in Ohms. (Ref R.B. IV.B.3)
+                Z[r, c] = Z[c, r] = self.data['RLC_params'][idx]['R'] \
+                                    + 1j*self.data['RLC_params'][idx]['L']
+                # C assumed to be in microSiemens. (Ref R.B. IV.B.3)
+                # C value is total capacitance, which ATP then divides by
+                # two for the pi model.
+                Y[r, c] = Y[c, r] = 1e-6j*self.data['RLC_params'][idx]['C']
+        self.Z = Z
+        self.Y = Y
+        return Z, Y
+
 
 # Quick and dirty hack to build lib files. Will only work for three-phase lines.
 ATPline_lib_head = ['''KARD  4  4  5  5  7  7
