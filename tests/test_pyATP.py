@@ -26,7 +26,7 @@ def assert_round_equals(n1, n2, **kwargs):
             assert_round_equals(n1[k], n2[k], **kwargs)
         return
     try:
-        np.allclose(n1, n2, equal_nan=True)
+        assert np.allclose(n1, n2, equal_nan=True)
     except (TypeError):
         # Types that can't be rounded are checked for equivalence
         assert n1 == n2
@@ -65,7 +65,7 @@ line_const_values = [{'PH': 1, 'BUS1': 'IN___A', 'BUS2': 'OUT__A',
                       'R': 5.86703718E+00, 'L': 2.12997966E+01,
                       'C': -2.77788794E+01},
                      {'R': 1.93343406E+01, 'L': 5.19575791E+01,
-                      'C': -1.06703365E+01},
+                      'C': 1.85084922E+02},
                      {'PH': 3, 'BUS1': 'IN___C', 'BUS2': 'OUT__C',
                       'R': 5.77782472E+00, 'L': 1.80816951E+01,
                       'C': -1.06703365E+01},
@@ -80,9 +80,10 @@ line_const_Z_mat = np.array([[1.91723657E+01 + 5.20611375E+01j,
                              [5.86703718E+00 + 2.12997966E+01j,
                               1.93343406E+01 + 5.19575791E+01j,
                               5.86703718E+00 + 2.12997966E+01j],
-                             [1.91723657E+01 + 5.20611375E+01j,
+                             [5.77782472E+00 + 1.80816951E+01j,
                               5.86703718E+00 + 2.12997966E+01j,
-                              5.77782472E+00 + 1.80816951E+01j]])
+                              1.91723657E+01 + 5.20611375E+01j]])
+
 
 line_const_Y_mat = np.array([[1e-6j *  1.80065993E+02,
                               1e-6j * -2.77788794E+01,
@@ -94,17 +95,35 @@ line_const_Y_mat = np.array([[1e-6j *  1.80065993E+02,
                               1e-6j * -2.77788794E+01,
                               1e-6j *  1.80065993E+02]])
 
+
+@pytest.mark.parametrize("m", [line_const_Z_mat, line_const_Y_mat])
+def test_symmetrical_matrix(m):
+    assert_round_equals(m, m.T)
+
+
 @pytest.mark.parametrize("test_card, card_text, values_dict_list, Z, Y",
                          [(tc_line_const_pch, tt_line_const_pch,
                            line_const_values, line_const_Z_mat,
                            line_const_Y_mat)])
-def test_parse_card(test_card, card_text, values_dict_list, Z, Y):
-    test_card.read(card_text, read_all_or_none=False)
-    assert test_card.match(card_text) is True
-    test_card.read(card_text)
-    for idx, values_dict in enumerate(values_dict_list):
-        for k, v in values_dict.items():
-            assert_round_equals(test_card.data['RLC_params'][idx][k], v)
-    assert_round_equals(test_card.Z, Z)
-    assert_round_equals(test_card.Y, Y)
-    assert_round_equals(test_card.ABCD, lineZ.ZY_to_ABCD(Z, Y))
+class TestParseCard:
+    def test_match(self, test_card, card_text, values_dict_list, Z, Y):
+        test_card.read(card_text, read_all_or_none=False)
+        assert test_card.match(card_text) is True
+
+    def test_values(self, test_card, card_text, values_dict_list, Z, Y):
+        test_card.read(card_text)
+        for idx, values_dict in enumerate(values_dict_list):
+            for k, v in values_dict.items():
+                assert_round_equals(test_card.data['RLC_params'][idx][k], v)
+
+    def test_Z(self, test_card, card_text, values_dict_list, Z, Y):
+        test_card.read(card_text, read_all_or_none=False)
+        assert_round_equals(test_card.Z, Z)
+
+    def test_Y(self, test_card, card_text, values_dict_list, Z, Y):
+        test_card.read(card_text, read_all_or_none=False)
+        assert_round_equals(test_card.Y, Y)
+
+    def test_ABCD(self, test_card, card_text, values_dict_list, Z, Y):
+        test_card.read(card_text, read_all_or_none=False)
+        assert_round_equals(test_card.ABCD, lineZ.ZY_to_ABCD(Z, Y))

@@ -428,7 +428,7 @@ class LineConstPCHCards(tdc.DataCardStack):
         Y = np.zeros((n_ph, n_ph), dtype=cdtype)
         idx = 0
         for r in range(n_ph):
-            for c in range(r):
+            for c in range(r+1):
                 # R & L assumed to be in Ohms. (Ref R.B. IV.B.3)
                 Z[r, c] = Z[c, r] = self.data['RLC_params'][idx]['R'] \
                                     + 1j*self.data['RLC_params'][idx]['L']
@@ -436,6 +436,7 @@ class LineConstPCHCards(tdc.DataCardStack):
                 # C value is total capacitance, which ATP then divides by
                 # two for the pi model.
                 Y[r, c] = Y[c, r] = 1e-6j*self.data['RLC_params'][idx]['C']
+                idx += 1
         self.Z = Z
         self.Y = Y
         return Z, Y
