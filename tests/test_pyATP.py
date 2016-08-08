@@ -7,14 +7,20 @@ test_pyATP
 
 Tests for `pyATP` module.
 """
+from __future__ import print_function, unicode_literals
 
 import pytest
+
+import os
 
 
 import pyATP
 import lineZ
 import numpy as np
 
+
+ATP_TEST_DIR = r'C:\Users\pdbrown\Documents\ATPdata\work\Test\\'
+ATP_TMP_FILENAME = 'test_tmp.atp'
 
 def assert_round_equals(n1, n2, **kwargs):
     if isinstance(n1, dict):
@@ -30,6 +36,35 @@ def assert_round_equals(n1, n2, **kwargs):
     except (TypeError):
         # Types that can't be rounded are checked for equivalence
         assert n1 == n2
+
+
+
+@pytest.mark.parametrize('ATP_template, current_key, switch_key, '
+                         'in_port, out_port, atp_segs',
+                         [('Test.atp', '5432.1', '-7.654',
+                           ('SRC', 'S0'), ('S1', 'TERRA'), ['LATIC', 'LATIC']),
+                          ('Test2.atp', '5432.1', '-7.654',
+                           ('SRC', 'S0'), ('S1', 'TERRA'), ['LATIC'])
+                          ])
+def test_extract_ABCD(ATP_template, current_key, switch_key,
+                 in_port, out_port, atp_segs):
+    ATP_file = ATP_TEST_DIR + ATP_template
+
+    ABCD_atp = pyATP.extract_ABCD(ATP_file, ATP_TMP_FILENAME, current_key,
+                                  switch_key, in_port, out_port)
+
+    params = []
+    for seg in atp_segs:
+        with open(os.path.join(ATP_TEST_DIR, seg + '.pch')) as pch_file:
+            pch_lines = pch_file.readlines()
+            params_pch = pyATP.LineConstPCHCards()
+            params_pch.read(pch_lines)
+            params.append(params_pch)
+
+    ABCD_pch_list = [p.ABCD for p in params]
+    ABCD_eq = lineZ.combine_ABCD(ABCD_pch_list)
+    assert_round_equals(ABCD_atp, ABCD_eq)
+
 
 tc_line_const_pch = pyATP.LineConstPCHCards()
 

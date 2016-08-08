@@ -22,30 +22,40 @@ A = np.array([[1., 1., 1.], [1., alpha**2, alpha], [1, alpha, alpha**2]],
 A_inv = inv(A)
 Apos = A[:,1]
 
-def ph_to_seq(ph_vec):
-    ''' Convert phase quantities to sequence components. '''
+
+def ph_to_seq_v(ph_vec):
+    ''' Convert phase quantities to sequence components.
+        Call on vectors.'''
     n_ph = ph_vec.shape[0]
     A_inv_block = np.kron(np.eye(n_ph // 3), A_inv)
-    if len(ph_vec.shape) is 1 or ph_vec.shape[0] == 1:
-        # Vector case
-        return A_inv_block.dot(ph_vec)
-    else:
-        # Matrix / array case
-        A_block = np.kron(np.eye(n_ph // 3), A)
-        return A_inv_block.dot(ph_vec).dot(A_block)
-    
-def seq_to_ph(seq_vec):
+    # Vector case
+    return A_inv_block.dot(ph_vec)
+
+
+def ph_to_seq_m(ph_vec):
+    ''' Convert phase quantities to sequence components.
+        Call on matrices. '''
+    n_ph = ph_vec.shape[0]
+    A_inv_block = np.kron(np.eye(n_ph // 3), A_inv)
+    A_block = np.kron(np.eye(n_ph // 3), A)
+    return A_inv_block.dot(ph_vec).dot(A_block)
+
+
+def seq_to_ph_v(seq_vec):
     ''' Convert sequence quantities to phase components'''
     n_ph = seq_vec.shape[-1]
     A_block = np.kron(np.eye(n_ph // 3), A)
-    if len(seq_vec.shape) is 1 or seq_vec.shape[0] == 1:
-        # Vector case
-        return A_block.dot(seq_vec)
-    else:
-        # Matrix / array case
-        A_inv_block = np.kron(np.eye(n_ph // 3), A)
-        return A_block.dot(seq_vec).dot(A_inv_block)
+    # Vector case
+    return A_block.dot(seq_vec)
 
+
+def seq_to_ph_m(seq_vec):
+    ''' Convert sequence quantities to phase components'''
+    n_ph = seq_vec.shape[-1]
+    A_block = np.kron(np.eye(n_ph // 3), A)
+    # Matrix / array case
+    A_inv_block = np.kron(np.eye(n_ph // 3), A)
+    return A_block.dot(seq_vec).dot(A_inv_block)
 
 # Define number of phases globally to avoid having to compute it elsewhere,
 # especially in functions that loop extensively.
@@ -163,25 +173,20 @@ chain_permutations_4th._chain_lookup = {P1: {P2: chain_permutations_3rd((P1, P2)
 
 chain_permutations = chain_permutations_4th
 
+
 def ZY_to_ABCD(Z, Y):
     ''' Create Two-port ABCD matrix from series impedance Z and shunt admittance Y.
         See Bergen & Vittal _Power Systems Analysis_ p.99-100
         Function allows for multiple (e.g. three) phases per port of the system.'''
-    #n_ph = Z.shape[0]
-    ABCD = np.asmatrix(np.empty((n_ph*2, n_ph*2), dtype=cdtype))
-    ABCD[:n_ph,:n_ph] = np.eye(n_ph, dtype=cdtype) + Z*Y/2
-    ABCD[:n_ph,n_ph:] = Z
-    ABCD[n_ph:,:n_ph] = Y + Y*Z*Y/4
-    ABCD[n_ph:,n_ph:] = np.eye(n_ph, dtype=cdtype) + Y*Z/2
-
-    return ABCD
+    Y1 = Y2 = Y/2.
+    return ZY_to_ABCD2(Z, Y1, Y2)
 
 def ZY_to_ABCD2(Z, Y1, Y2):
     ''' Create Two-port ABCD matrix from series impedance Z and shunt admittances Y1 & Y2.
         See Bergen & Vittal _Power Systems Analysis_ p.99-100
         Function allows for multiple (e.g. three) phases per port of the system.'''
-    #n_ph = Z.shape[0]
-    ABCD = np.asmatrix(np.empty((n_ph*2, n_ph*2), dtype=cdtype))
+    n_ph = Z.shape[0]
+    ABCD = np.empty((n_ph*2, n_ph*2), dtype=cdtype)
     ABCD[:n_ph,:n_ph] = np.eye(n_ph, dtype=cdtype) + Z.dot(Y2)
     ABCD[:n_ph,n_ph:] = Z
     ABCD[n_ph:,:n_ph] = Y1 + Y1.dot(Z).dot(Y2) + Y2
@@ -200,10 +205,18 @@ def ABCD_to_ZY(ABCD):
     Y2 = inv(Z)*(A - np.eye(n_ph))
     Y1 = (D - np.eye(n_ph))*inv(Z)
     # Verify if C is consistent with a pi model
-    Cpi = Y1 + Y1*Z*Y2 + Y2
-    print('C - Cpi', C - Cpi)
+    # Cpi = Y1 + Y1*Z*Y2 + Y2
+    # print('C - Cpi', C - Cpi)
 
     return Z, Y1, Y2
+
+
+def combine_ABCD(ABCD_list):
+    rtn = np.eye(ABCD_list[0].shape[0], dtype=cdtype)
+    for ABCD in ABCD_list:
+        rtn = rtn.dot(ABCD)
+    return rtn
+
 
 def ABCD_breakout(ABCD):
     ''' Breaks ABCD matrix out into A, B, C, and D

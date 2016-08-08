@@ -8,6 +8,8 @@ test_lineZ
 Tests for `lineZ` module.
 """
 
+from __future__ import print_function, unicode_literals
+
 import pytest
 
 

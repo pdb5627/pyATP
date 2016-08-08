@@ -28,7 +28,7 @@ import itertools, copy, os
 
 import subprocess, re, csv, codecs, shutil
 
-ATP_path = 'C:/ATP/ATPmingw/'
+ATP_path = 'C:\ATP\gigmingw'
 ATP_exe = 'runATP_G.bat'
 
 be_quiet = True
@@ -37,7 +37,7 @@ def run_ATP(ATP_file, quiet=None):
     kwargs = {}
     if quiet is not None and quiet or quiet is None and be_quiet:
         kwargs['stdout'] = open(os.devnull, 'w')
-    rtn = subprocess.call((ATP_path+ATP_exe, ATP_file), **kwargs)
+    rtn = subprocess.call((os.path.join(ATP_path, ATP_exe), ATP_file), **kwargs)
     
 def atp_basename(ATP_file):
     '''
@@ -226,8 +226,8 @@ def output_ss_file(LIS_file, SS_file=None, buses=None, phases=('A', 'B', 'C'), R
     
     if SS_file is None:
         SS_file = re.match('(.*)\.lis$',LIS_file, flags=re.I).group(1) + '_ss.csv'
-    with open(SS_file, 'wb') as csvfile:
-        sswriter = csv.writer(csvfile)
+    with open(SS_file, 'w') as csvfile:
+        sswriter = csv.writer(csvfile, lineterminator='\n')
         if buses is not None:
             # Output bus voltage results
             sswriter.writerow(list(itertools.chain(('Bus',),
@@ -272,7 +272,7 @@ def process_SS_bus_voltages(LIS_file, buses, phases=('A', 'B', 'C'), RMS_scale=F
     node_voltages, branch_currents = get_SS_results(LIS_file, RMS_scale)
     
     ph_voltages = np.array([[node_voltages[b+p] for p in phases] for b in buses]).T
-    seq_voltages = np.array(lineZ.ph_to_seq(ph_voltages))
+    seq_voltages = np.array(lineZ.ph_to_seq_v(ph_voltages))
     neg_seq_imbalance = np.abs(seq_voltages[2]/seq_voltages[1])*100
     
     return ph_voltages, seq_voltages, neg_seq_imbalance
@@ -282,6 +282,9 @@ def extract_ABCD(ATP_template, ATP_tmp, current_key, switch_key,
                  test_current = 500., switch_close_t = '999.',
                  phases =  ('A', 'B', 'C')):
 
+    # ATP_tmp should be in the same directory as ATP_template since most likely
+    # the model will include includes of .lib files for line parameters.
+    ATP_tmp_full = os.path.join(os.path.dirname(ATP_template), ATP_tmp)
 
     V1_s = np.zeros((3,3), dtype=np.complex128)
     V1_o = np.zeros((3,3), dtype=np.complex128)
@@ -292,19 +295,19 @@ def extract_ABCD(ATP_template, ATP_tmp, current_key, switch_key,
 
     for out_port_short in (True, False):
         for n, ph in enumerate(phases):
-            shutil.copyfile(ATP_template, ATP_tmp)
+            shutil.copyfile(ATP_template, ATP_tmp_full)
             # Find/replace code numbers in template ATP file and copy to new file
             for n2, ph2 in enumerate(phases):
-                replace_text(ATP_tmp, current_key,
+                replace_text(ATP_tmp_full, current_key,
                         ('%6f.' % (test_current if n2==n else test_current/1000.)),
                         n=n+1)
-            replace_text(ATP_tmp, switch_key, '-1' if out_port_short else '1')
+            replace_text(ATP_tmp_full, switch_key, '-1' if out_port_short else '1')
 
             # Run ATP on new file
-            run_ATP(ATP_tmp)
+            run_ATP(ATP_tmp_full)
 
             # Extract steady-state results
-            LIS_results = lis_filename(ATP_tmp)
+            LIS_results = lis_filename(ATP_tmp_full)
             node_voltages, branch_currents = get_SS_results(LIS_results)
             
             if out_port_short:
@@ -394,7 +397,12 @@ units_card = tdc.DataCard('A7, A73', ['$UNITS,', 'Flag'], fixed_fields=(0,))
 
 class LineConstPCHCards(tdc.DataCardStack):
     """ Stack of cards output by a line constants case, based on three-phase
-        line and the way ATPDraw runs the case.
+        line and the way ATPDraw runs the case. NOTE: L and C parameters are
+        assumed to be in the file at nominal frequency. For 60 Hz,
+        there should be a $UNITS card with values 60., 60.. This object will
+        still read the data otherwise, but matrices may have mH or uF instead of
+        Ohms and microSiemens.
+
     """
     def __init__(self):
         tdc.DataCardStack.__init__(self,
