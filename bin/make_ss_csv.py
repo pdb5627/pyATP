@@ -107,7 +107,7 @@ def main(argv=None):
                 (neg_seq_imbalance[n_max], buses[n_max]))
     except (SystemExit, KeyboardInterrupt):
         raise
-    except Exception, e:
+    except Exception as e:
         logger.error('Program error', exc_info=True)
     
     logger.info('DONE.')
