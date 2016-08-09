@@ -64,15 +64,15 @@ def terminal_state(line_defs, line, terminal=(0, 1)):
         dict.
     """
     rtn = []
-    for t in terminal:
-        s = 'term%d_met' % t
+    for n in terminal:
+        s = 'term%d_met' % n
         t = line_defs[line][s]
         V_ph = np.array(
             [t['V%s' % ph] for ph in ['A', 'B', 'C']]) * 1e3  # kV to V
         I_ph = np.array(
             [t['I%s' % ph] for ph in ['A', 'B', 'C']])  # already A
         # Reverse polarity of I1
-        if t == 0:
+        if n == 0:
             I_ph *= -1
         X_ph = np.concatenate((V_ph, I_ph))
         rtn.append(X_ph)
@@ -203,38 +203,19 @@ def main(argv=None):
                 pass
 
     # Pull in ATP parameters from PCH files
-    for line in line_defs:
-        line_defs[line]['atp_params'] = []
-        for seg in line_defs[line]['atp_segs']:
-            with open(os.path.join(args.atp_pch_folder, seg + '.pch')) as \
-                    pch_file:
-                pch_lines = pch_file.readlines()
-                params = pyATP.LineConstPCHCards()
-                params.read(pch_lines)
-                line_defs[line]['atp_params'].append(params)
+    for line, l in line_defs.items():
+        _, summary_data_dict = pyATP.get_line_params_from_pch(
+            args.atp_pch_folder, l['atp_segs']
+        )
+        # Add summary line parameter data to data dict.
+        for k, v in summary_data_dict.items():
+            l[k] = v
 
     # Pull in ATP steady-state results gathered by make_ss_csv
     for line, l in line_defs.items():
         for idx, branch in enumerate(l['atp_branches']):
             l['term%d_atp_branch' % idx] = atp_data_list['branch_data'][branch]
             l['term%d_atp_bus' % idx] = atp_data_list['bus_data'][branch[0]]
-
-    # Combine segment ABCD matrices into ABCD of line in phase and sequence
-    # components
-    for line, l in line_defs.items():
-        l['Zsum'] = np.sum([pch_params.Z for pch_params in l['atp_params']], 0)
-        l['Ysum'] = np.sum([pch_params.Y for pch_params in l['atp_params']], 0)
-        l['Zsum_s'] = lineZ.ph_to_seq_m(l['Zsum'])
-        l['Ysum_s'] = lineZ.ph_to_seq_m(l['Ysum'])
-        ABCD_list = [pch_params.ABCD for pch_params in l['atp_params']]
-        l['ABCD'] = lineZ.combine_ABCD(ABCD_list)
-        Z, Y1, Y2 = lineZ.ABCD_to_ZY(l['ABCD'])
-        l['Zeq'] = Z
-        l['Yeq'] = Y1 + Y2
-        l['ABCD_s'] = lineZ.ph_to_seq_m(l['ABCD'])
-        Z, Y1, Y2 = lineZ.ABCD_to_ZY(l['ABCD_s'])
-        l['Zeq_s'] = Z
-        l['Yeq_s'] = Y1 + Y2
 
     # Calculate absolute bus angles based on a reference bus and line PQ flows.
     bus_angles = set_angles(line_defs, 'Thedford')
@@ -287,6 +268,8 @@ def main(argv=None):
         X1_s_atp = np.concatenate((l['term0_atp_bus']['seq_voltages'],
                                    l['term0_atp_branch'][
                                        'seq_br_currents']))
+        #
+        X1_s_atp[3:] *= -1 # Reverse polarity of I1
         X2_s_atp = np.concatenate((l['term1_atp_bus']['seq_voltages'],
                                    l['term1_atp_branch'][
                                        'seq_br_currents']))
@@ -359,6 +342,22 @@ def main(argv=None):
                           Polar(X2_s_atp[2]),
                           Polar(X2_s_atp[2] - X2_s_m[2])))
 
+            vdrop2_m = X2_s_m[2] - X1_s_m[2]
+            vdrop2_atp = X2_s_atp[2] - X1_s_atp[2]
+            print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
+                  .format('Delta V2:',
+                          Polar(vdrop2_m),
+                          Polar(vdrop2_atp),
+                          Polar(vdrop2_m - vdrop2_atp)))
+
+            vdrop1_m = X2_s_m[1] - X1_s_m[1]
+            vdrop1_atp = X2_s_atp[1] - X1_s_atp[1]
+            print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
+                  .format('Delta V1:',
+                          Polar(vdrop1_m),
+                          Polar(vdrop1_atp),
+                          Polar(vdrop1_m - vdrop1_atp)))
+
             if not have_met_1 and have_met_2:
                 # If metering is only available at the other end, use it.
                 # Switch both measured and ATP results for consistency.
@@ -375,6 +374,15 @@ def main(argv=None):
                   .format(Polar(X1_s_m[4]),
                           Polar(X1_s_atp[4]),
                           Polar(X1_s_diff[4])))
+            print('I1*Z1 Voltage Drop:    {:7.2f}  {:7.2f}  {:7.2f}'
+                  .format(Polar(X1_s_m[4] * Z_s[1, 1]),
+                          Polar(X1_s_atp[4] * Z_s[1, 1]),
+                          Polar(X1_s_diff[4] * Z_s[1, 1])))
+            print('Z1 based on MET:       {:7.2f}  {:7.2f}  {:7.2f}'
+                  .format(Polar(vdrop1_m / X1_s_m[4]),
+                          Polar(vdrop1_atp / X1_s_atp[4]),
+                          vdrop1_atp / X1_s_atp[4]
+                                - vdrop1_m / X1_s_m[4]))
             print('I2:                    {:7.2f}  {:7.2f}  {:7.2f}'
                   .format(Polar(X1_s_m[5]),
                           Polar(X1_s_atp[5]),
@@ -392,8 +400,12 @@ def main(argv=None):
                           Polar(X1_s_atp[5] * Z_s[2, 2]
                                 + X1_s_atp[4] * Z_s[2, 1]),
                           Polar(X1_s_diff[5] * Z_s[2, 2]
-                                + X1_s_diff[4] * Z_s[2, 1])
-                          ))
+                                + X1_s_diff[4] * Z_s[2, 1])))
+            print('Vdrop_2 - Z*I:         {:7.2f}  {:7.2f}'
+                  .format(Polar(vdrop2_m - (X1_s_m[5] * Z_s[2, 2]
+                                + X1_s_m[4] * Z_s[2, 1])),
+                          Polar(vdrop2_atp - (X1_s_atp[5] * Z_s[2, 2]
+                                + X1_s_atp[4] * Z_s[2, 1]))))
 
     print("--- Completed in %s seconds ---" % (time_fun() - start_time))
 

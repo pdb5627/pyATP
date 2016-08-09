@@ -368,6 +368,51 @@ def process_SS_branch_currents(LIS_file, branches, phases=('A', 'B', 'C'),
     return ph_br_currents, seq_br_currents, S_3ph
 
 
+def get_line_params_from_pch(atp_pch_folder, seg_list):
+    """ Reads in line parameters from PCH files, saves the data, and combines
+        data into an aggregate summary of several parameters. Returns two
+        dicts as a tuple:
+        seg_data_dict: {seg: params} returns the segment name and
+            LineConstPCHCards object for each segment.
+        summary_data_dict: Returns various parameters with the line segments
+            combined into an equivalent. Parameters returned are the
+            following:
+            Zsum: Sum of Z matrices of segments
+            Ysum: Sum of Y matrices of segments
+            Zsum_s, Ysum_s: Symmetrical components of Zsum & Ysum
+            ABCD: Transfer matrix in phase quantities
+            Zeq: Equivalent Z matrix from ABCD
+            Yeq: Equivalent Y matrix from ABCD
+            ABCD_s, Zeq_s, Yeq_s: Symmetrical components of prev. three."""
+    seg_data_dict = {}
+    for seg in seg_list:
+        with open(os.path.join(atp_pch_folder, seg + '.pch')) as \
+                pch_file:
+            pch_lines = pch_file.readlines()
+            params = LineConstPCHCards()
+            params.read(pch_lines)
+        seg_data_dict[seg] = params
+
+    summary_data_dict = {}
+    summary_data_dict['Zsum'] = np.sum([p.Z for _, p in seg_data_dict.items()],
+                                       axis=0)
+    summary_data_dict['Ysum'] = np.sum([p.Y for _, p in seg_data_dict.items()],
+                                       axis=0)
+    summary_data_dict['Zsum_s'] = lineZ.ph_to_seq_m(summary_data_dict['Zsum'])
+    summary_data_dict['Ysum_s'] = lineZ.ph_to_seq_m(summary_data_dict['Ysum'])
+    ABCD_list = [p.ABCD for _, p in seg_data_dict.items()]
+    summary_data_dict['ABCD'] = lineZ.combine_ABCD(ABCD_list)
+    Z, Y1, Y2 = lineZ.ABCD_to_ZY(summary_data_dict['ABCD'])
+    summary_data_dict['Zeq'] = Z
+    summary_data_dict['Yeq'] = Y1 + Y2
+    summary_data_dict['ABCD_s'] = lineZ.ph_to_seq_m(summary_data_dict['ABCD'])
+    Z, Y1, Y2 = lineZ.ABCD_to_ZY(summary_data_dict['ABCD_s'])
+    summary_data_dict['Zeq_s'] = Z
+    summary_data_dict['Yeq_s'] = Y1 + Y2
+    return seg_data_dict, summary_data_dict
+
+
+
 def extract_ABCD(ATP_template, ATP_tmp, current_key, switch_key,
                  in_port, out_port,
                  test_current = 500., switch_close_t = '999.',
