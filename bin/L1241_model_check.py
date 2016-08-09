@@ -3,23 +3,20 @@
 
 from __future__ import print_function, unicode_literals
 
-import os
-import pyATP
-import lineZ
-from lineZ import cdtype
-import cmath
-import itertools
-import pickle
 import argparse
-
+import cmath
+import pickle
 import time
+
+import lineZ
+import pyATP
+from lineZ import Polar
 
 time_fun = time.clock
 
-import sys, shutil, glob, itertools, codecs, os, math
+import sys, math
 import numpy as np
 np.set_printoptions(linewidth=120)
-from matplotlib import pyplot as plt
 
 import contextlib
 
@@ -36,11 +33,6 @@ def polar_formatter(x):
     a = np.angle(x, deg=True)
     return str(m) + ' @ ' + str(a)
 
-class Polar(complex):
-    def __format__(self, format_spec):
-        m = abs(self)
-        a = math.degrees(cmath.phase(self))
-        return ('{:' + format_spec + '} @ {: ' + format_spec + '}').format(m, a)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
@@ -234,7 +226,7 @@ def main(argv=None):
         print('=' * 80)
         print(line)
         # print(line_defs[line]['Zeq'])
-        print('Z1 = {:.4f}, Z0 = {:.4f}, Z21 = {:.4f}'\
+        print('Z1 = {:.4f}, Z0 = {:.4f}, Z21 = {:.4f}' \
               .format(l['Zsum_s'][1, 1],
                       l['Zsum_s'][0, 0],
                       Polar(Z_s[2, 1])))
@@ -382,7 +374,7 @@ def main(argv=None):
                   .format(Polar(vdrop1_m / X1_s_m[4]),
                           Polar(vdrop1_atp / X1_s_atp[4]),
                           vdrop1_atp / X1_s_atp[4]
-                                - vdrop1_m / X1_s_m[4]))
+                          - vdrop1_m / X1_s_m[4]))
             print('I2:                    {:7.2f}  {:7.2f}  {:7.2f}'
                   .format(Polar(X1_s_m[5]),
                           Polar(X1_s_atp[5]),
@@ -403,9 +395,9 @@ def main(argv=None):
                                 + X1_s_diff[4] * Z_s[2, 1])))
             print('Vdrop_2 - Z*I:         {:7.2f}  {:7.2f}'
                   .format(Polar(vdrop2_m - (X1_s_m[5] * Z_s[2, 2]
-                                + X1_s_m[4] * Z_s[2, 1])),
+                                            + X1_s_m[4] * Z_s[2, 1])),
                           Polar(vdrop2_atp - (X1_s_atp[5] * Z_s[2, 2]
-                                + X1_s_atp[4] * Z_s[2, 1]))))
+                                              + X1_s_atp[4] * Z_s[2, 1]))))
 
     print("--- Completed in %s seconds ---" % (time_fun() - start_time))
 

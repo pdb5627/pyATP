@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 from numpy.linalg import inv, eig, eigh
 #import line_profiler
@@ -807,4 +809,11 @@ def Pt_list_to_phasing(Pt_list, str_types, Pos, Phase_list=None):
     return ['\n'.join([' '*4 + ph + ' - ' + pos
                 for ph, pos in zip((Phase_list[n] for n in ph_list),
                     pos_list)])
-            for ph_list, pos_list in zip(cum_Pt, [Pos[str_type.rstrip('_*')] for str_type in str_types])]    
+            for ph_list, pos_list in zip(cum_Pt, [Pos[str_type.rstrip('_*')] for str_type in str_types])]
+
+
+class Polar(complex):
+    def __format__(self, format_spec):
+        m = abs(self)
+        a = math.degrees(cmath.phase(self))
+        return ('{:' + format_spec + '} @ {: ' + format_spec + '}').format(m, a)
