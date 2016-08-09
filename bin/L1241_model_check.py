@@ -248,7 +248,7 @@ def main(argv=None):
         bus0 = l['terminals'][0]
         bus1 = l['terminals'][1]
 
-
+        print('')
         print('=' * 80)
         print(line)
         # print(line_defs[line]['Zeq'])
@@ -283,63 +283,74 @@ def main(argv=None):
             X2_s_m = np.empty(6)
             X2_s_m.fill(np.NAN)
 
+        X1_s_atp = np.concatenate((l['term0_atp_bus']['seq_voltages'],
+                                   l['term0_atp_branch'][
+                                       'seq_br_currents']))
+        X2_s_atp = np.concatenate((l['term1_atp_bus']['seq_voltages'],
+                                   l['term1_atp_branch'][
+                                       'seq_br_currents']))
+
         print('-' * 80)
 
         with printoptions(precision=5, suppress=True,
                           formatter={'complex_kind': polar_formatter}):
-            if have_met_1:
-                print('%s Metering' % l['terminals'][0])
-                print('Voltages (V): ', X1_ph_m[:3])
-                print('Current  (A): ', X1_ph_m[3:])
+            if False:
+                if have_met_1:
+                    print('%s Metering' % l['terminals'][0])
+                    print('Voltages (V): ', X1_ph_m[:3])
+                    print('Current  (A): ', X1_ph_m[3:])
+                    print('Symmetrical Components')
+                    print('Voltages (V): ', X1_s_m[:3])
+                    print('Current  (A): ', X1_s_m[3:])
+
+                print('From ATP model for Terminal %s' % l['terminals'][0])
+                print('Voltages (V): ', l['term0_atp_bus']['ph_voltages'])
+                print('Current  (A): ', l['term0_atp_branch']['ph_br_currents'])
                 print('Symmetrical Components')
-                print('Voltages (V): ', X1_s_m[:3])
-                print('Current  (A): ', X1_s_m[3:])
+                print('Voltages (V): ', l['term0_atp_bus']['seq_voltages'])
+                print('Current  (A): ', l['term0_atp_branch']['seq_br_currents'])
 
-            print('From ATP model for Terminal %s' % l['terminals'][0])
-            print('Voltages (V): ', l['term0_atp_bus']['ph_voltages'])
-            print('Current  (A): ', l['term0_atp_branch']['ph_br_currents'])
-            print('Symmetrical Components')
-            print('Voltages (V): ', l['term0_atp_bus']['seq_voltages'])
-            print('Current  (A): ', l['term0_atp_branch']['seq_br_currents'])
-            X1_s_atp = np.concatenate((l['term0_atp_bus']['seq_voltages'],
-                           l['term0_atp_branch']['seq_br_currents']))
-
-            print('-' * 80)
-
-            if have_met_2:
-                print('%s Metering' % l['terminals'][1])
-
-                print('Voltages (V): ', X2_ph_m[:3])
-                print('Current  (A): ', X2_ph_m[3:])
-                print('Symmetrical Components from %s' % l['terminals'][1])
-                print('Voltages (V): ', X2_s_m[:3])
-                print('Current  (A): ', X2_s_m[3:])
-
-            print('From ATP model for Terminal %s' % l['terminals'][1])
-            print('Voltages (V): ', l['term1_atp_bus']['ph_voltages'])
-            print('Current  (A): ', l['term1_atp_branch']['ph_br_currents'])
-            print('Symmetrical Components')
-            print('Voltages (V): ', l['term1_atp_bus']['seq_voltages'])
-            print('Current  (A): ', l['term1_atp_branch']['seq_br_currents'])
-            X2_s_atp = np.concatenate((l['term1_atp_bus']['seq_voltages'],
-                           l['term1_atp_branch']['seq_br_currents']))
-
-            if have_met_1 and have_met_2:
                 print('-' * 80)
-                X1_ph = X1_ph_m
-                X2_ph = T.dot(X1_ph)
 
-                print('Calculated vs measured phase angles at %s'
-                      % l['terminals'][1])
-                print('Phase       ', np.angle(X2_ph, deg=True)
-                      - np.angle(X2_ph_m, deg=True))
-                print('Symm. Comp. ', np.angle(lineZ.ph_to_seq_v(X2_ph), deg=True)
-                      - np.angle(X2_s_m, deg=True))
+                if have_met_2:
+                    print('%s Metering' % l['terminals'][1])
 
-            print('-' * 80)
+                    print('Voltages (V): ', X2_ph_m[:3])
+                    print('Current  (A): ', X2_ph_m[3:])
+                    print('Symmetrical Components from %s' % l['terminals'][1])
+                    print('Voltages (V): ', X2_s_m[:3])
+                    print('Current  (A): ', X2_s_m[3:])
+
+                print('From ATP model for Terminal %s' % l['terminals'][1])
+                print('Voltages (V): ', l['term1_atp_bus']['ph_voltages'])
+                print('Current  (A): ', l['term1_atp_branch']['ph_br_currents'])
+                print('Symmetrical Components')
+                print('Voltages (V): ', l['term1_atp_bus']['seq_voltages'])
+                print('Current  (A): ', l['term1_atp_branch']['seq_br_currents'])
+
+
+                if have_met_1 and have_met_2:
+                    print('-' * 80)
+                    X1_ph = X1_ph_m
+                    X2_ph = T.dot(X1_ph)
+
+                    print('Calculated vs measured phase angles at %s'
+                          % l['terminals'][1])
+                    print('Phase       ', np.angle(X2_ph, deg=True)
+                          - np.angle(X2_ph_m, deg=True))
+                    print('Symm. Comp. ', np.angle(lineZ.ph_to_seq_v(X2_ph), deg=True)
+                          - np.angle(X2_s_m, deg=True))
+
+                print('-' * 80)
 
             print('Comparison to ATP')
 
+            print('I1:                    {:7.2f}  {:7.2f}'
+                  .format(Polar(X1_s_m[4]),
+                          Polar(X1_s_atp[4])))
+            print('I2:                    {:7.2f}  {:7.2f}'
+                  .format(Polar(X1_s_m[5]),
+                          Polar(X1_s_atp[5])))
             print('I2*Z2 Voltage Drop:    {:7.2f}  {:7.2f}'
                   .format(Polar(X1_s_m[5] * Z_s[2, 2]),
                           Polar(X1_s_atp[5] * Z_s[2, 2])))
