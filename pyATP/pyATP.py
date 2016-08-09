@@ -7,6 +7,7 @@ At this time, only steady-state result extraction is supported.
 from __future__ import print_function, unicode_literals
 
 from math import sqrt
+import pickle
 
 import lineZ
 
@@ -213,19 +214,54 @@ def get_SS_results(LIS_file, RMS_scale=False):
         
         return node_voltages, branch_currents
 
-def output_ss_file(LIS_file, SS_file=None, buses=None, phases=('A', 'B', 'C'), RMS_scale=False):
+
+def output_ss_file(LIS_file, SS_file=None, pickle_file=None,
+                   buses=None, branches=None,
+                   phases=('A','B', 'C'), RMS_scale=False):
     '''
     Extract steady-state phasor results from LIS file and output them to a _ss.csv
     file in comma-separated format.
     '''
-    
+    data_list = {} # Data to save to pickle file
     node_voltages, branch_currents = get_SS_results(LIS_file, RMS_scale)
+    data_list['node_voltages'] = node_voltages
+    data_list['branch_currents'] = branch_currents
+
     if buses is not None:
         ph_voltages, seq_voltages, neg_seq_imbalance = \
                 process_SS_bus_voltages(LIS_file, buses, phases, RMS_scale)
+        bus_data = {}
+        for n, bus in enumerate(buses):
+            bus_data[bus] = {}
+            bus_data[bus]['ph_voltages'] = ph_voltages[:, n]
+            bus_data[bus]['seq_voltages'] = seq_voltages[:, n]
+            bus_data[bus]['neg_seq_imbalance'] = neg_seq_imbalance[n]
+        data_list['bus_data'] = bus_data
+
+    if branches is not None:
+        ph_br_currents, seq_br_currents, S_3ph = \
+            process_SS_branch_currents(LIS_file, branches, phases, RMS_scale)
+        branch_data = {}
+        for n, branch in enumerate(branches):
+            branch = tuple(branch) # convert to tuple for indexing
+            branch_data[branch] = {}
+            branch_data[branch]['ph_br_currents'] = ph_br_currents[:, n]
+            branch_data[branch]['seq_br_currents'] = seq_br_currents[:, n]
+            branch_data[branch]['S_3ph'] = S_3ph[n]
+        data_list['branch_data'] = branch_data
+
+    # Reorganize data_list to be easier to key into bus or branch data
+    bus_data = {}
     
     if SS_file is None:
         SS_file = re.match('(.*)\.lis$',LIS_file, flags=re.I).group(1) + '_ss.csv'
+
+    if pickle_file is None:
+        pickle_file = re.match('(.*)\.lis$',LIS_file, flags=re.I).group(1) + '_ss.p'
+
+    with open(pickle_file, 'wb') as binfile:
+        pickle.dump(data_list, binfile)
+
     with open(SS_file, 'w') as csvfile:
         sswriter = csv.writer(csvfile, lineterminator='\n')
         if buses is not None:
@@ -235,18 +271,51 @@ def output_ss_file(LIS_file, SS_file=None, buses=None, phases=('A', 'B', 'C'), R
                   '%s-phase Voltage (Imag)' % ph) for ph in phases]),
                 itertools.chain(*[('%s-sequence Voltage (Real)' % ph,  
                   '%s-sequence Voltage (Imag)' % ph) for ph in ('Zero', 'Positive', 'Negative')]),
+                itertools.chain(*[('%s-phase Voltage (Mag)' % ph,
+                  '%s-phase Voltage (Ang)' % ph) for ph in phases]),
+                itertools.chain(*[('%s-sequence Voltage (Mag)' % ph,
+                  '%s-sequence Voltage (Ang)' % ph) for ph in ('Zero', 'Positive', 'Negative')]),
                 ('Neg. Seq. Unbalance Factor (%%)',))))
             for n, bus in enumerate(buses):
                 sswriter.writerow(list(itertools.chain((bus,), 
-                        itertools.chain(*zip(np.real(ph_voltages[:,n]),
+                        itertools.chain(*zip(np.real(ph_voltages[:, n]),
                             np.imag(ph_voltages[:,n]))),
-                        itertools.chain(*zip(np.real(seq_voltages[:,n]),
+                        itertools.chain(*zip(np.real(seq_voltages[:, n]),
                             np.imag(seq_voltages[:,n]))),
+                        itertools.chain(*zip(np.absolute(ph_voltages[:, n]),
+                           np.angle(ph_voltages[:, n], deg=True))),
+                        itertools.chain(*zip(np.absolute(seq_voltages[:, n]),
+                           np.angle(seq_voltages[:, n], deg=True))),
                         (neg_seq_imbalance[n],))))
         
-            sswriter.writerow(['--------']*13)
-        
-        
+            sswriter.writerow(['--------']*26)
+
+        if branches is not None:
+            # Output branch current results
+            sswriter.writerow(list(itertools.chain(('From Bus', 'To Bus',
+                                                    '3PH MW', '3PH Mvar'),
+                itertools.chain(*[('%s-phase Voltage (Real)' % ph,
+                  '%s-phase Voltage (Imag)' % ph) for ph in phases]),
+                itertools.chain(*[('%s-sequence Voltage (Real)' % ph,
+                  '%s-sequence Voltage (Imag)' % ph) for ph in ('Zero', 'Positive', 'Negative')]),
+                itertools.chain(*[('%s-phase Voltage (Mag)' % ph,
+                  '%s-phase Voltage (Ang)' % ph) for ph in phases]),
+                itertools.chain(*[('%s-sequence Voltage (Mag)' % ph,
+                  '%s-sequence Voltage (Ang)' % ph) for ph in ('Zero', 'Positive', 'Negative')]))))
+            for n, branch in enumerate(branches):
+                sswriter.writerow(list(itertools.chain(branch,
+                        (S_3ph.real[n], S_3ph.imag[n]),
+                        itertools.chain(*zip(np.real(ph_br_currents[:, n]),
+                            np.imag(ph_br_currents[:,n]))),
+                        itertools.chain(*zip(np.real(seq_br_currents[:, n]),
+                            np.imag(seq_br_currents[:,n]))),
+                        itertools.chain(*zip(np.absolute(ph_br_currents[:, n]),
+                           np.angle(ph_br_currents[:, n], deg=True))),
+                        itertools.chain(*zip(np.absolute(seq_br_currents[:, n]),
+                           np.angle(seq_br_currents[:, n], deg=True))))))
+
+            sswriter.writerow(['--------']*28)
+
         # Output node voltage results
         sswriter.writerow(['Bus', 'Bus Voltage (Real)', 'Bus Voltage (Imag)'])
         for node, voltage in node_voltages.items():
@@ -270,12 +339,34 @@ def process_SS_bus_voltages(LIS_file, buses, phases=('A', 'B', 'C'), RMS_scale=F
         seq_voltages, neg_seq_imbalance as tuple of lists in same order as buses.
     '''
     node_voltages, branch_currents = get_SS_results(LIS_file, RMS_scale)
-    
     ph_voltages = np.array([[node_voltages[b+p] for p in phases] for b in buses]).T
     seq_voltages = np.array(lineZ.ph_to_seq_v(ph_voltages))
     neg_seq_imbalance = np.abs(seq_voltages[2]/seq_voltages[1])*100
     
     return ph_voltages, seq_voltages, neg_seq_imbalance
+
+
+def process_SS_branch_currents(LIS_file, branches, phases=('A', 'B', 'C'),
+                            RMS_scale=False):
+    ''' Parses LIS_file to get steady state results, then creates vectors of
+        branch current phasors on the specified branches. Returns
+        ph_br_currents, seq_br_currents as tuple of lists in same order as
+        the list of branches.
+    '''
+    node_voltages, branch_currents = get_SS_results(LIS_file, RMS_scale)
+
+    ph_br_currents = np.array(
+        [[branch_currents[(fr_b + p, to_b + p)] for p in phases]
+         for fr_b, to_b in branches]).T
+    seq_br_currents = np.array(lineZ.ph_to_seq_v(ph_br_currents))
+    # Voltages for power calculation
+    ph_voltages = np.array(
+        [[node_voltages[fr_b + p] for p in phases]
+         for fr_b, to_b in branches]).T
+    S_3ph = np.sum(ph_voltages * np.conj(ph_br_currents), axis=0) / 1e6
+
+    return ph_br_currents, seq_br_currents, S_3ph
+
 
 def extract_ABCD(ATP_template, ATP_tmp, current_key, switch_key,
                  in_port, out_port,
