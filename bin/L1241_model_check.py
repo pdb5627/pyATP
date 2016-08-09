@@ -238,10 +238,11 @@ def main(argv=None):
 
     # Calculate absolute bus angles based on a reference bus and line PQ flows.
     bus_angles = set_angles(line_defs, 'Thedford')
-    print('\n'.join(('{:16}: {:.2f} deg.'.format(bus, a)
-                     for bus, a in bus_angles.items())))
+    print('\n'.join(('{:16}: {:.2f} deg.'.format(bus, bus_angles[bus])
+                     for bus in sorted(bus_angles))))
 
-    for line, l in line_defs.items():
+    for line in sorted(line_defs):
+        l = line_defs[line]
         T = l['ABCD']
         Z = l['Zeq']
         Z_s = l['Zeq_s']
@@ -343,24 +344,56 @@ def main(argv=None):
 
                 print('-' * 80)
 
-            print('Comparison to ATP')
+            print('')
+            print('Comparison to ATP          Relay MET       ATP Steady-State'
+                  '      Difference')
+            print(' '*23 + '-'*17 + '  ' + '-'*17 + '  ' + '-'*17)
+            print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
+                  .format(bus0 + ' Bus V2:',
+                          Polar(X1_s_m[2]),
+                          Polar(X1_s_atp[2]),
+                          Polar(X1_s_atp[2] - X1_s_m[2])))
+            print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
+                  .format(bus1 + ' Bus V2:',
+                          Polar(X2_s_m[2]),
+                          Polar(X2_s_atp[2]),
+                          Polar(X2_s_atp[2] - X2_s_m[2])))
 
-            print('I1:                    {:7.2f}  {:7.2f}'
+            if not have_met_1 and have_met_2:
+                # If metering is only available at the other end, use it.
+                # Switch both measured and ATP results for consistency.
+                # Current at both ends should be very similar unless the line
+                # is long or energized at EHV.
+                X1_s_m = X2_s_m
+                X1_s_m[3:] *= -1 # Invert current
+                X1_s_atp = X2_s_atp
+                X1_s_atp[3:] *= -1
+
+            X1_s_diff =X1_s_atp - X1_s_m
+
+            print('I1:                    {:7.2f}  {:7.2f}  {:7.2f}'
                   .format(Polar(X1_s_m[4]),
-                          Polar(X1_s_atp[4])))
-            print('I2:                    {:7.2f}  {:7.2f}'
+                          Polar(X1_s_atp[4]),
+                          Polar(X1_s_diff[4])))
+            print('I2:                    {:7.2f}  {:7.2f}  {:7.2f}'
                   .format(Polar(X1_s_m[5]),
-                          Polar(X1_s_atp[5])))
-            print('I2*Z2 Voltage Drop:    {:7.2f}  {:7.2f}'
+                          Polar(X1_s_atp[5]),
+                          Polar(X1_s_diff[5])))
+            print('I2*Z2 Voltage Drop:    {:7.2f}  {:7.2f}  {:7.2f}'
                   .format(Polar(X1_s_m[5] * Z_s[2, 2]),
-                          Polar(X1_s_atp[5] * Z_s[2, 2])))
-            print('I1*Z21 Voltage Drop:   {:7.2f}  {:7.2f}'
+                          Polar(X1_s_atp[5] * Z_s[2, 2]),
+                          Polar(X1_s_diff[5] * Z_s[2, 2])))
+            print('I1*Z21 Voltage Drop:   {:7.2f}  {:7.2f}  {:7.2f}'
                   .format(Polar(X1_s_m[4] * Z_s[2, 1]),
-                          Polar(X1_s_atp[4] * Z_s[2, 1])))
-            print('Total V2 Voltage Drop: {:7.2f}  {:7.2f}'
+                          Polar(X1_s_atp[4] * Z_s[2, 1]),
+                          Polar(X1_s_diff[4] * Z_s[2, 1])))
+            print('Total V2 Voltage Drop: {:7.2f}  {:7.2f}  {:7.2f}'
                   .format(Polar(X1_s_m[5] * Z_s[2, 2] + X1_s_m[4] * Z_s[2, 1]),
                           Polar(X1_s_atp[5] * Z_s[2, 2]
-                                + X1_s_atp[4] * Z_s[2, 1])))
+                                + X1_s_atp[4] * Z_s[2, 1]),
+                          Polar(X1_s_diff[5] * Z_s[2, 2]
+                                + X1_s_diff[4] * Z_s[2, 1])
+                          ))
 
     print("--- Completed in %s seconds ---" % (time_fun() - start_time))
 
