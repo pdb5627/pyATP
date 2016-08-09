@@ -72,7 +72,7 @@ def terminal_state(line_defs, line, terminal=(0, 1)):
         I_ph = np.array(
             [t['I%s' % ph] for ph in ['A', 'B', 'C']])  # already A
         # Reverse polarity of I1
-        if s == 'term0_met':
+        if t == 0:
             I_ph *= -1
         X_ph = np.concatenate((V_ph, I_ph))
         rtn.append(X_ph)
@@ -215,7 +215,7 @@ def main(argv=None):
 
     # Pull in ATP steady-state results gathered by make_ss_csv
     for line, l in line_defs.items():
-        for terminal, branch in zip(l['terminals'], l['atp_branches']):
+        for idx, branch in enumerate(l['atp_branches']):
             l['term%d_atp_branch' % idx] = atp_data_list['branch_data'][branch]
             l['term%d_atp_bus' % idx] = atp_data_list['bus_data'][branch[0]]
 
@@ -238,8 +238,8 @@ def main(argv=None):
 
     # Calculate absolute bus angles based on a reference bus and line PQ flows.
     bus_angles = set_angles(line_defs, 'Thedford')
-    print('\n'.join(('{:16}: {:.2f} deg.'.format(bus, a) for bus,
-                                                      a in bus_angles.items())))
+    print('\n'.join(('{:16}: {:.2f} deg.'.format(bus, a)
+                     for bus, a in bus_angles.items())))
 
     for line, l in line_defs.items():
         T = l['ABCD']
@@ -249,7 +249,7 @@ def main(argv=None):
         bus1 = l['terminals'][1]
 
 
-        print('-'*80)
+        print('=' * 80)
         print(line)
         # print(line_defs[line]['Zeq'])
         print('Z1 = {:.4f}, Z0 = {:.4f}, Z21 = {:.4f}'\
@@ -258,54 +258,98 @@ def main(argv=None):
                       Polar(Z_s[2, 1])))
 
         try:
-            X1_ph_m, X2_ph_m = terminal_state(line_defs, line)
+            X1_ph_m, = terminal_state(line_defs, line, terminal=(0,))
+            have_met_1 = True
+            # Shift measured phasors by calculated angle relative to ref. bus
+            X1_ph_m *= cmath.exp(1j * math.radians(bus_angles[bus0]))
+            # Calculate symmetrical components
+            X1_s_m = lineZ.ph_to_seq_v(X1_ph_m)
         except KeyError:
-            continue
-        print(line)
+            have_met_1 = False
+            X1_ph_m = np.empty(6)
+            X1_ph_m.fill(np.NAN)
+            X1_s_m = np.empty(6)
+            X1_s_m.fill(np.NAN)
 
-        # Shift measured phasors by calculated angle relative to ref. bus
-        X1_ph_m *= cmath.exp(1j * math.radians(bus_angles[bus0]))
-        X2_ph_m *= cmath.exp(1j * math.radians(bus_angles[bus1]))
+        try:
+            X2_ph_m, = terminal_state(line_defs, line, terminal=(1,))
+            X2_ph_m *= cmath.exp(1j * math.radians(bus_angles[bus1]))
+            X2_s_m = lineZ.ph_to_seq_v(X2_ph_m)
+            have_met_2 = True
+        except KeyError:
+            have_met_2 = False
+            X2_ph_m = np.empty(6)
+            X2_ph_m.fill(np.NAN)
+            X2_s_m = np.empty(6)
+            X2_s_m.fill(np.NAN)
 
-        # Calculate symmetrical components
-        X1_s_m = lineZ.ph_to_seq_v(X1_ph_m)
-        X2_s_m = lineZ.ph_to_seq_v(X2_ph_m)
+        print('-' * 80)
 
         with printoptions(precision=5, suppress=True,
                           formatter={'complex_kind': polar_formatter}):
-            print('%s Metering' % l['terminals'][0])
-            print('Voltages (V): ', X1_ph_m[:3])
-            print('Current  (A): ', X1_ph_m[3:])
+            if have_met_1:
+                print('%s Metering' % l['terminals'][0])
+                print('Voltages (V): ', X1_ph_m[:3])
+                print('Current  (A): ', X1_ph_m[3:])
+                print('Symmetrical Components')
+                print('Voltages (V): ', X1_s_m[:3])
+                print('Current  (A): ', X1_s_m[3:])
+
+            print('From ATP model for Terminal %s' % l['terminals'][0])
+            print('Voltages (V): ', l['term0_atp_bus']['ph_voltages'])
+            print('Current  (A): ', l['term0_atp_branch']['ph_br_currents'])
             print('Symmetrical Components')
-            print('Voltages (V): ', X1_s_m[:3])
-            print('Current  (A): ', X1_s_m[3:])
+            print('Voltages (V): ', l['term0_atp_bus']['seq_voltages'])
+            print('Current  (A): ', l['term0_atp_branch']['seq_br_currents'])
+            X1_s_atp = np.concatenate((l['term0_atp_bus']['seq_voltages'],
+                           l['term0_atp_branch']['seq_br_currents']))
 
-            print('%s Metering' % l['terminals'][1])
+            print('-' * 80)
 
-            print('Voltages (V): ', X2_ph_m[:3])
-            print('Current  (A): ', X2_ph_m[3:])
-            print('Symmetrical Components from %s' % l['terminals'][1])
-            print('Voltages (V): ', X2_s_m[:3])
-            print('Current  (A): ', X2_s_m[3:])
+            if have_met_2:
+                print('%s Metering' % l['terminals'][1])
 
-            X1_ph = X1_ph_m
-            X2_ph = T.dot(X1_ph)
-            print('Calculated based on ABCD matrix and Terminal 1 V & I:')
-            print('Voltages (V): ', X2_ph[:3])
-            print('Current  (A): ', X2_ph[3:])
+                print('Voltages (V): ', X2_ph_m[:3])
+                print('Current  (A): ', X2_ph_m[3:])
+                print('Symmetrical Components from %s' % l['terminals'][1])
+                print('Voltages (V): ', X2_s_m[:3])
+                print('Current  (A): ', X2_s_m[3:])
 
-            # print()
-            print('Calculated vs measured phase angles')
-            print('Phase ', np.angle(X2_ph, deg=True) - np.angle(X2_ph_m, deg=True))
-            print('Symm. Comp. ', np.angle(lineZ.ph_to_seq_v(X2_ph), deg=True)
-                  - np.angle(X2_s_m, deg=True))
+            print('From ATP model for Terminal %s' % l['terminals'][1])
+            print('Voltages (V): ', l['term1_atp_bus']['ph_voltages'])
+            print('Current  (A): ', l['term1_atp_branch']['ph_br_currents'])
+            print('Symmetrical Components')
+            print('Voltages (V): ', l['term1_atp_bus']['seq_voltages'])
+            print('Current  (A): ', l['term1_atp_branch']['seq_br_currents'])
+            X2_s_atp = np.concatenate((l['term1_atp_bus']['seq_voltages'],
+                           l['term1_atp_branch']['seq_br_currents']))
 
-            print('I2*Z2 Voltage Drop:    {:7.2f}'
-                  .format(Polar(X1_s_m[5] * Z_s[2, 2])))
-            print('I1*Z21 Voltage Drop:   {:7.2f}'
-                  .format(Polar(X1_s_m[4] * Z_s[2, 1])))
-            print('Total V2 Voltage Drop: {:7.2f}'
-                  .format(Polar(X1_s_m[5] * Z_s[2, 2] + X1_s_m[4] * Z_s[2, 1])))
+            if have_met_1 and have_met_2:
+                print('-' * 80)
+                X1_ph = X1_ph_m
+                X2_ph = T.dot(X1_ph)
+
+                print('Calculated vs measured phase angles at %s'
+                      % l['terminals'][1])
+                print('Phase       ', np.angle(X2_ph, deg=True)
+                      - np.angle(X2_ph_m, deg=True))
+                print('Symm. Comp. ', np.angle(lineZ.ph_to_seq_v(X2_ph), deg=True)
+                      - np.angle(X2_s_m, deg=True))
+
+            print('-' * 80)
+
+            print('Comparison to ATP')
+
+            print('I2*Z2 Voltage Drop:    {:7.2f}  {:7.2f}'
+                  .format(Polar(X1_s_m[5] * Z_s[2, 2]),
+                          Polar(X1_s_atp[5] * Z_s[2, 2])))
+            print('I1*Z21 Voltage Drop:   {:7.2f}  {:7.2f}'
+                  .format(Polar(X1_s_m[4] * Z_s[2, 1]),
+                          Polar(X1_s_atp[4] * Z_s[2, 1])))
+            print('Total V2 Voltage Drop: {:7.2f}  {:7.2f}'
+                  .format(Polar(X1_s_m[5] * Z_s[2, 2] + X1_s_m[4] * Z_s[2, 1]),
+                          Polar(X1_s_atp[5] * Z_s[2, 2]
+                                + X1_s_atp[4] * Z_s[2, 1])))
 
     print("--- Completed in %s seconds ---" % (time_fun() - start_time))
 
