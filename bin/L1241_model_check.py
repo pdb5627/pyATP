@@ -36,11 +36,6 @@ def polar_formatter(x):
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
-parser.add_argument('binary_met_data',
-                    type=argparse.FileType('rb'),
-                    help='Binary file of extracted meter data in Python '
-                         'pickle format. For format, see extract_met_data in '
-                         'sel_utilities package.')
 parser.add_argument('atp_pch_folder',
                     help='Folder in which ATP pch files of line parameters '
                          'are found.')
@@ -48,6 +43,13 @@ parser.add_argument('binary_atp_data',
                     type=argparse.FileType('rb'),
                     help='Name of binary (Python pickle format) '
                          'file to read. See make_ss_csv.py.')
+parser.add_argument('binary_met_data',
+                    nargs='?',
+                    default=None,
+                    type=argparse.FileType('rb'),
+                    help='Binary file of extracted meter data in Python '
+                         'pickle format. For format, see extract_met_data in '
+                         'sel_utilities package.')
 
 
 def terminal_state(line_defs, line, terminal=(0, 1)):
@@ -119,8 +121,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     # Read meter data from pickle file.
-    with args.binary_met_data as picklefile:
-        data_list = pickle.load(picklefile)
+    try:
+        with args.binary_met_data as picklefile:
+            data_list = pickle.load(picklefile)
+    except AttributeError:
+        data_list = {}
 
     # Read ATP steady-state data from pickle file.
     with args.binary_atp_data as picklefile:
@@ -146,9 +151,13 @@ def main(argv=None):
                             'atp_segs': ('L140C',),
                             'atp_branches': (('CALLA', 'CALBB'),
                                              ('BROKE', 'BBCAL'))},
-                 'L1240A': {'terminals': ('Broken Bow', 'BB Wind'),
-                            'atp_segs': ('L40A1', 'L40A2', 'L40A3', 'L240B'),
+                 'L1240A': {'terminals': ('Broken Bow', 'Muddy Creek'),
+                            'atp_segs': ('L40A1', 'L40A2', 'L40A3'),
                             'atp_branches': (('BROKE', 'BBMCK'),
+                                             ('MUDDY', 'MCKBB'))},
+                 'L1240B': {'terminals': ('Muddy Creek', 'BB Wind'),
+                            'atp_segs': ('L240B',),
+                            'atp_branches': (('MUDDY', 'MCBBW'),
                                              ('BBWIN', 'BBWMC'))},
                  'L1170':  {'terminals': ('Broken Bow', 'Loup City'),
                             'atp_segs': ('L170A', 'L170B'),
@@ -209,9 +218,14 @@ def main(argv=None):
             l['term%d_atp_bus' % idx] = atp_data_list['bus_data'][branch[0]]
 
     # Calculate absolute bus angles based on a reference bus and line PQ flows.
-    bus_angles = set_angles(line_defs, 'Thedford')
-    print('\n'.join(('{:16}: {:.2f} deg.'.format(bus, bus_angles[bus])
-                     for bus in sorted(bus_angles))))
+    try:
+        bus_angles = set_angles(line_defs, 'Thedford')
+        print('\n'.join(('{:16}: {:.2f} deg.'.format(bus, bus_angles[bus])
+                         for bus in sorted(bus_angles))))
+    except KeyError:
+        print('Bus angles could not be set. This is normal if metering data '
+              'is not provided for all lines.')
+        pass
 
     for line in sorted(line_defs):
         l = line_defs[line]
@@ -226,8 +240,8 @@ def main(argv=None):
         print(line)
         # print(l['Zeq'])
         print('Z1 = {:.4f}, Z0 = {:.4f}, Z21 = {:.4f}' \
-              .format(l['Zsum_s'][1, 1],
-                      l['Zsum_s'][0, 0],
+              .format(Z_s[1, 1],
+                      Z_s[0, 0],
                       Polar(Z_s[2, 1])))
 
         with printoptions(precision=2, suppress=True, linewidth=50,
