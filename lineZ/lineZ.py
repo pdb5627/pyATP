@@ -521,12 +521,13 @@ def phase_impedances(Z):
 
 
 def impedance_imbalance(Z):
-    ''' Impedance imbalance calculated as the maximum phase impedance deviation
-        from the mean phase impedance, divided by the mean phase impedance.
-        Returns factor in %.'''
+    """ Impedance imbalance calculated as the maximum phase impedance
+        magnitude minus the minimum phase impedance magnitude, divided by
+        the mean phase impedance.
+        Returns factor in %."""
     Zph = np.absolute(phase_impedances(Z))
     mn = np.mean(Zph)
-    return np.max(np.absolute(Zph - mn))/mn*100.
+    return (np.max(Zph) - np.min(Zph))/mn*100.
 
 def neg_seq_voltage(Z, Iload=600., Vbase=345.E3):
     Zs = A_inv.dot(Z).dot(A)
@@ -544,31 +545,7 @@ def zero_seq_unbalance_factor(Z):
     Zs = A_inv.dot(Z).dot(A)
     return abs(Zs[0,1]/Zs[1,1])*100.
 
-def filter_nondominated_results_old(results, criteria=[impedance_imbalance, neg_seq_unbalance_factor], beat_factor=1.0):
-    ''' Return list of results that are non-dominated according to a specified list of criteria.
-        The criteria should be functions that take the phase impedance matrix as input and evaluate
-        such that LESS is BETTER. The default criteria are phase impedance imbalance and negative-
-        sequence unbalance factor criteria.
-        Takes a beat_factor argument that allows a result to be dominated unless it beats all other
-        non-dominated solutions by at least beat_factor times the criteria results for all criteria.
-        The default beat_factor is 1, which results in direct comparison.
-        Results list is assumed to be passed in as a list of tuples where the third element is the
-        phase impedance matrix.'''
-    non_dominated = []
-    dominated = set()
-    c_r = [[c(r[2]) for c in criteria] for r in results] # Precompute function values
-    for n1, c_r1 in enumerate(c_r):
-        # Check to see if r1 is dominated by any
-        for n2, c_r2 in filter(lambda r: r[0]!=n1 and r[0] not in dominated, enumerate(c_r)):
-            if all(beat_factor*cx_r2 < cx_r1 for cx_r1, cx_r2 in zip(c_r1, c_r2)):
-                # r1 was dominated by r2
-                dominated.add(n1)
-                break
-        else:
-            # r1 was not dominated
-            non_dominated.append(n1)
-    return [results[n] for n in non_dominated]
-    
+
 def filter_nondominated_results_old(results, criteria=[impedance_imbalance, neg_seq_unbalance_factor], precompute=None, beat_factor=1.0):
     ''' Return list of results that are non-dominated according to a specified list of criteria.
         The criteria should be functions that take the phase impedance matrix as input and evaluate
