@@ -133,7 +133,7 @@ def max_neg_seq_unbalance(r, as_str=False):
         return 'Maximum neg. seq. voltage unbalance: %.4f %%' % rtn
 max_neg_seq_unbalance.description = 'Max. Negative Seq. Unbalance'
 max_neg_seq_unbalance.units = '%'
-    
+
 def avg_neg_seq_unbalance(r, as_str=False):
     ''' r is assumed to be (ph_voltages, seq_voltages, neg_seq_unbalance) '''
     rtn = np.mean(r[2])
@@ -145,6 +145,16 @@ avg_neg_seq_unbalance.description = 'Avg. Negative Seq. Unbalance'
 avg_neg_seq_unbalance.units = '%'
 
 
+L1240A_segs = ['L40A1', 'L40A2', 'L40A3']
+_, L1240A_params = pyATP.get_line_params_from_pch(
+        tmp_dir, L1240A_segs)
+L1240A_Z21 = L1240A_params['Zsum_s'][2, 1]
+
+L1240B_segs = ['L240B']
+_, L1240B_params = pyATP.get_line_params_from_pch(
+        tmp_dir, L1240B_segs)
+L1240B_Z21 = L1240B_params['Zsum_s'][2, 1]
+
 def Z21_magnitude(r, as_str=False):
     ''' r is assumed to be (ph_voltages, seq_voltages, neg_seq_unbalance,
         summary_line_data) '''
@@ -154,7 +164,9 @@ def Z21_magnitude(r, as_str=False):
     if not as_str:
         return abs(Z21)
     else:
-        return 'Z21: {:.4f} Ohms'.format(Polar(Z21))
+        return '\n'.join(['Z21: {:.4f} Ohms'.format(Polar(Z21)),
+                        'Z21: {:.4f} Ohms series w/ L1240A'
+                       .format(Polar(Z21 + L1240A_Z21))])
 Z21_magnitude.description = 'Z21 magnitude'
 Z21_magnitude.units = 'Ohms'
 
@@ -168,7 +180,7 @@ def Z_imbalance(r, as_str=False):
     if not as_str:
         return rtn
     else:
-        Zph = np.absolute(r[3]['Zsum'].dot(lineZ.Apos))
+        Zph = np.absolute(lineZ.phase_impedances(r[3]['Zsum']))
         return 'Impedance imbalance: {} {:.4f} %'.format(Zph, rtn)
 Z_imbalance.description = 'Impedance imbalance'
 Z_imbalance.units = '%'
@@ -178,7 +190,7 @@ criteria = [max_neg_seq_unbalance,
             avg_neg_seq_unbalance,
             Z21_magnitude,
             Z_imbalance]
-criteria_weights = [1., 1., 0., 10.] # Weight avg. more to scale it up.
+criteria_weights = [0., 10.] # Weight avg. more to scale it up.
 
 # =============================================================================
 # Without L1241 in model.
@@ -380,16 +392,17 @@ if selected_soln is not None:
     print('-'*80)
     print('Selected solution: ', selected_soln)
 
-    for atp_filename in atp_filenames:
-        r = results_dict[full_soln_tuple][atp_filename]
-        ph_voltages = r[0][0]
-        seq_voltages = r[0][1]
-        neg_seq_unbalance = r[0][2]
-        print('Bus p.u. voltages and % negative-sequence voltage')
-        for n, b in enumerate(buses):
-           print('%6s : %s, %.3f%%' %
-                 (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)),
-                  neg_seq_unbalance[n]))
+    if False:
+        for atp_filename in atp_filenames:
+            r = results_dict[full_soln_tuple][atp_filename]
+            ph_voltages = r[0][0]
+            seq_voltages = r[0][1]
+            neg_seq_unbalance = r[0][2]
+            print('Bus p.u. voltages and % negative-sequence voltage')
+            for n, b in enumerate(buses):
+               print('%6s : %s, %.3f%%' %
+                     (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)),
+                      neg_seq_unbalance[n]))
 
     print('Total line impedance:')
     Z_s = summary_data_dict['Zsum_s']
