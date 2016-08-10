@@ -517,24 +517,24 @@ def impedance_calcs_recursive(Zstr, Ystr, L, str_types, Pt_list, print_calcs = F
 def impedance_imbalance(Z):
     ''' Impedance imbalance calculated as the maximum phase impedance deviation from the mean
         phase impedance, divided by the mean phase impedance. Returns factor in %.'''
-    Zph = np.absolute(Z*Apos)
+    Zph = np.absolute(Z.dot(Apos))
     mn = np.mean(Zph)
     return np.max(np.absolute(Zph - mn))/mn*100.
 
 def neg_seq_voltage(Z, Iload=600., Vbase=345.E3):
-    Zs = A_inv*Z*A
+    Zs = A_inv.dot(Z).dot(A)
     return abs(Zs[2,1])*Iload*1.732/Vbase*100.
 
 def neg_seq_unbalance_factor(Z):
     ''' Negative-sequence unbalance factor calculated based on EPRI Redbook Eqn. 3.4.35.
         Returns factor in %.'''
-    Zs = A_inv*Z*A
+    Zs = A_inv.dot(Z).dot(A)
     return abs(Zs[2,1]/Zs[1,1])*100.
 
 def zero_seq_unbalance_factor(Z):
     ''' Zero-sequence unbalance factor calculated based on EPRI Redbook Eqn. 3.4.34.
         Returns factor in %.'''
-    Zs = A_inv*Z*A
+    Zs = A_inv.dot(Z).dot(A)
     return abs(Zs[0,1]/Zs[1,1])*100.
 
 def filter_nondominated_results_old(results, criteria=[impedance_imbalance, neg_seq_unbalance_factor], beat_factor=1.0):
