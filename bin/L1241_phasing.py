@@ -239,7 +239,7 @@ for atp_filename in atp_filenames:
 
     # Read in line impedance parameters from PCH files
     _, summary_data_dict = pyATP.get_line_params_from_pch(
-        tmp_dir, ['L40A1', 'L40A2', 'L40A3'] + section_ATPname)
+        tmp_dir, section_ATPname)
 
     r_base['base'][atp_filename] = ((ph_voltages,
                                      seq_voltages,
@@ -298,7 +298,7 @@ for atp_filename in atp_filenames:
 
             # Read in line impedance parameters from PCH files
             _, summary_data_dict = pyATP.get_line_params_from_pch(
-                tmp_dir, ['L40A1', 'L40A2', 'L40A3'] + section_ATPname)
+                tmp_dir, section_ATPname)
 
             
             # Save results to array
