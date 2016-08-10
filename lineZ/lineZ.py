@@ -514,10 +514,17 @@ def impedance_calcs_recursive(Zstr, Ystr, L, str_types, Pt_list, print_calcs = F
         print('Zphase total:', np.absolute(Ztotal*Apos).T)
     return Ztotal
 
+
+def phase_impedances(Z):
+    ''' Calculate phase impedances.'''
+    return np.multiply(A[2, :], Z.dot(Apos))
+
+
 def impedance_imbalance(Z):
-    ''' Impedance imbalance calculated as the maximum phase impedance deviation from the mean
-        phase impedance, divided by the mean phase impedance. Returns factor in %.'''
-    Zph = np.absolute(Z.dot(Apos))
+    ''' Impedance imbalance calculated as the maximum phase impedance deviation
+        from the mean phase impedance, divided by the mean phase impedance.
+        Returns factor in %.'''
+    Zph = np.absolute(phase_impedances(Z))
     mn = np.mean(Zph)
     return np.max(np.absolute(Zph - mn))/mn*100.
 
