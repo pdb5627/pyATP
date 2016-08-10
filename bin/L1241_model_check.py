@@ -29,9 +29,8 @@ def printoptions(*args, **kwargs):
 
 
 def polar_formatter(x):
-    m = np.absolute(x)
-    a = np.angle(x, deg=True)
-    return str(m) + ' @ ' + str(a)
+    option_dict = np.get_printoptions()
+    return '{:.{:d}f}'.format(Polar(x), option_dict['precision'])
 
 
 parser = argparse.ArgumentParser()
@@ -225,11 +224,17 @@ def main(argv=None):
         print('')
         print('=' * 80)
         print(line)
-        # print(line_defs[line]['Zeq'])
+        # print(l['Zeq'])
         print('Z1 = {:.4f}, Z0 = {:.4f}, Z21 = {:.4f}' \
               .format(l['Zsum_s'][1, 1],
                       l['Zsum_s'][0, 0],
                       Polar(Z_s[2, 1])))
+
+        with printoptions(precision=2, suppress=True, linewidth=50,
+                          formatter={'complex_kind': polar_formatter}):
+            print('Phase impedances & imbalance: {}, {:.2f}%'.format(
+                  lineZ.phase_impedances(l['Zeq']),
+                  lineZ.impedance_imbalance(l['Zeq'])))
 
         try:
             X1_ph_m, = terminal_state(line_defs, line, terminal=(0,))
@@ -266,11 +271,10 @@ def main(argv=None):
                                    l['term1_atp_branch'][
                                        'seq_br_currents']))
 
-        print('-' * 80)
-
         with printoptions(precision=5, suppress=True,
                           formatter={'complex_kind': polar_formatter}):
             if False:
+                print('-' * 80)
                 if have_met_1:
                     print('%s Metering' % l['terminals'][0])
                     print('Voltages (V): ', X1_ph_m[:3])
@@ -317,88 +321,91 @@ def main(argv=None):
                     print('Symm. Comp. ', np.angle(lineZ.ph_to_seq_v(X2_ph), deg=True)
                           - np.angle(X2_s_m, deg=True))
 
+            if False:
                 print('-' * 80)
+                print('')
+                print('Comparison to ATP          Relay MET       ATP Steady-State'
+                      '      Difference')
+                print(' '*23 + '-'*17 + '  ' + '-'*17 + '  ' + '-'*17)
+                print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
+                      .format(bus0 + ' Bus V2:',
+                              Polar(X1_s_m[2]),
+                              Polar(X1_s_atp[2]),
+                              Polar(X1_s_atp[2] - X1_s_m[2])))
+                print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
+                      .format(bus1 + ' Bus V2:',
+                              Polar(X2_s_m[2]),
+                              Polar(X2_s_atp[2]),
+                              Polar(X2_s_atp[2] - X2_s_m[2])))
 
-            print('')
-            print('Comparison to ATP          Relay MET       ATP Steady-State'
-                  '      Difference')
-            print(' '*23 + '-'*17 + '  ' + '-'*17 + '  ' + '-'*17)
-            print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
-                  .format(bus0 + ' Bus V2:',
-                          Polar(X1_s_m[2]),
-                          Polar(X1_s_atp[2]),
-                          Polar(X1_s_atp[2] - X1_s_m[2])))
-            print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
-                  .format(bus1 + ' Bus V2:',
-                          Polar(X2_s_m[2]),
-                          Polar(X2_s_atp[2]),
-                          Polar(X2_s_atp[2] - X2_s_m[2])))
+                vdrop2_m = X2_s_m[2] - X1_s_m[2]
+                vdrop2_atp = X2_s_atp[2] - X1_s_atp[2]
+                print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
+                      .format('Delta V2:',
+                              Polar(vdrop2_m),
+                              Polar(vdrop2_atp),
+                              Polar(vdrop2_m - vdrop2_atp)))
 
-            vdrop2_m = X2_s_m[2] - X1_s_m[2]
-            vdrop2_atp = X2_s_atp[2] - X1_s_atp[2]
-            print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
-                  .format('Delta V2:',
-                          Polar(vdrop2_m),
-                          Polar(vdrop2_atp),
-                          Polar(vdrop2_m - vdrop2_atp)))
+                vdrop1_m = X2_s_m[1] - X1_s_m[1]
+                vdrop1_atp = X2_s_atp[1] - X1_s_atp[1]
+                print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
+                      .format('Delta V1:',
+                              Polar(vdrop1_m),
+                              Polar(vdrop1_atp),
+                              Polar(vdrop1_m - vdrop1_atp)))
 
-            vdrop1_m = X2_s_m[1] - X1_s_m[1]
-            vdrop1_atp = X2_s_atp[1] - X1_s_atp[1]
-            print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
-                  .format('Delta V1:',
-                          Polar(vdrop1_m),
-                          Polar(vdrop1_atp),
-                          Polar(vdrop1_m - vdrop1_atp)))
+                if not have_met_1 and have_met_2:
+                    # If metering is only available at the other end, use it.
+                    # Switch both measured and ATP results for consistency.
+                    # Current at both ends should be very similar unless the
+                    # line is long or energized at EHV.
+                    X1_s_m = X2_s_m
+                    X1_s_m[3:] *= -1 # Invert current
+                    X1_s_atp = X2_s_atp
+                    X1_s_atp[3:] *= -1
 
-            if not have_met_1 and have_met_2:
-                # If metering is only available at the other end, use it.
-                # Switch both measured and ATP results for consistency.
-                # Current at both ends should be very similar unless the line
-                # is long or energized at EHV.
-                X1_s_m = X2_s_m
-                X1_s_m[3:] *= -1 # Invert current
-                X1_s_atp = X2_s_atp
-                X1_s_atp[3:] *= -1
+                X1_s_diff =X1_s_atp - X1_s_m
 
-            X1_s_diff =X1_s_atp - X1_s_m
+                print('I1:                    {:7.2f}  {:7.2f}  {:7.2f}'
+                      .format(Polar(X1_s_m[4]),
+                              Polar(X1_s_atp[4]),
+                              Polar(X1_s_diff[4])))
+                print('I1*Z1 Voltage Drop:    {:7.2f}  {:7.2f}  {:7.2f}'
+                      .format(Polar(X1_s_m[4] * Z_s[1, 1]),
+                              Polar(X1_s_atp[4] * Z_s[1, 1]),
+                              Polar(X1_s_diff[4] * Z_s[1, 1])))
+                print('Z1 based on MET:       {:7.2f}  {:7.2f}  {:7.2f}'
+                      .format(Polar(vdrop1_m / X1_s_m[4]),
+                              Polar(vdrop1_atp / X1_s_atp[4]),
+                              vdrop1_atp / X1_s_atp[4]
+                              - vdrop1_m / X1_s_m[4]))
+                print('I2:                    {:7.2f}  {:7.2f}  {:7.2f}'
+                      .format(Polar(X1_s_m[5]),
+                              Polar(X1_s_atp[5]),
+                              Polar(X1_s_diff[5])))
+                print('I2*Z2 Voltage Drop:    {:7.2f}  {:7.2f}  {:7.2f}'
+                      .format(Polar(X1_s_m[5] * Z_s[2, 2]),
+                              Polar(X1_s_atp[5] * Z_s[2, 2]),
+                              Polar(X1_s_diff[5] * Z_s[2, 2])))
+                print('I1*Z21 Voltage Drop:   {:7.2f}  {:7.2f}  {:7.2f}'
+                      .format(Polar(X1_s_m[4] * Z_s[2, 1]),
+                              Polar(X1_s_atp[4] * Z_s[2, 1]),
+                              Polar(X1_s_diff[4] * Z_s[2, 1])))
+                print('Total V2 Voltage Drop: {:7.2f}  {:7.2f}  {:7.2f}'
+                      .format(Polar(X1_s_m[5] * Z_s[2, 2]
+                                    + X1_s_m[4] * Z_s[2, 1]),
+                              Polar(X1_s_atp[5] * Z_s[2, 2]
+                                    + X1_s_atp[4] * Z_s[2, 1]),
+                              Polar(X1_s_diff[5] * Z_s[2, 2]
+                                    + X1_s_diff[4] * Z_s[2, 1])))
+                print('Vdrop_2 - Z*I:         {:7.2f}  {:7.2f}'
+                      .format(Polar(vdrop2_m - (X1_s_m[5] * Z_s[2, 2]
+                                                + X1_s_m[4] * Z_s[2, 1])),
+                              Polar(vdrop2_atp - (X1_s_atp[5] * Z_s[2, 2]
+                                                  + X1_s_atp[4] * Z_s[2, 1]))))
 
-            print('I1:                    {:7.2f}  {:7.2f}  {:7.2f}'
-                  .format(Polar(X1_s_m[4]),
-                          Polar(X1_s_atp[4]),
-                          Polar(X1_s_diff[4])))
-            print('I1*Z1 Voltage Drop:    {:7.2f}  {:7.2f}  {:7.2f}'
-                  .format(Polar(X1_s_m[4] * Z_s[1, 1]),
-                          Polar(X1_s_atp[4] * Z_s[1, 1]),
-                          Polar(X1_s_diff[4] * Z_s[1, 1])))
-            print('Z1 based on MET:       {:7.2f}  {:7.2f}  {:7.2f}'
-                  .format(Polar(vdrop1_m / X1_s_m[4]),
-                          Polar(vdrop1_atp / X1_s_atp[4]),
-                          vdrop1_atp / X1_s_atp[4]
-                          - vdrop1_m / X1_s_m[4]))
-            print('I2:                    {:7.2f}  {:7.2f}  {:7.2f}'
-                  .format(Polar(X1_s_m[5]),
-                          Polar(X1_s_atp[5]),
-                          Polar(X1_s_diff[5])))
-            print('I2*Z2 Voltage Drop:    {:7.2f}  {:7.2f}  {:7.2f}'
-                  .format(Polar(X1_s_m[5] * Z_s[2, 2]),
-                          Polar(X1_s_atp[5] * Z_s[2, 2]),
-                          Polar(X1_s_diff[5] * Z_s[2, 2])))
-            print('I1*Z21 Voltage Drop:   {:7.2f}  {:7.2f}  {:7.2f}'
-                  .format(Polar(X1_s_m[4] * Z_s[2, 1]),
-                          Polar(X1_s_atp[4] * Z_s[2, 1]),
-                          Polar(X1_s_diff[4] * Z_s[2, 1])))
-            print('Total V2 Voltage Drop: {:7.2f}  {:7.2f}  {:7.2f}'
-                  .format(Polar(X1_s_m[5] * Z_s[2, 2] + X1_s_m[4] * Z_s[2, 1]),
-                          Polar(X1_s_atp[5] * Z_s[2, 2]
-                                + X1_s_atp[4] * Z_s[2, 1]),
-                          Polar(X1_s_diff[5] * Z_s[2, 2]
-                                + X1_s_diff[4] * Z_s[2, 1])))
-            print('Vdrop_2 - Z*I:         {:7.2f}  {:7.2f}'
-                  .format(Polar(vdrop2_m - (X1_s_m[5] * Z_s[2, 2]
-                                            + X1_s_m[4] * Z_s[2, 1])),
-                          Polar(vdrop2_atp - (X1_s_atp[5] * Z_s[2, 2]
-                                              + X1_s_atp[4] * Z_s[2, 1]))))
-
+    print('='*80)
+    print('')
     print("--- Completed in %s seconds ---" % (time_fun() - start_time))
 
 
