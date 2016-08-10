@@ -5,6 +5,7 @@ from __future__ import print_function, unicode_literals
 
 import pyATP
 import lineZ
+from lineZ import Polar
 
 import sys, shutil, glob, itertools, codecs, os, math
 import numpy as np
@@ -143,17 +144,49 @@ def avg_neg_seq_unbalance(r, as_str=False):
 avg_neg_seq_unbalance.description = 'Avg. Negative Seq. Unbalance'
 avg_neg_seq_unbalance.units = '%'
 
+
+def Z21_magnitude(r, as_str=False):
+    ''' r is assumed to be (ph_voltages, seq_voltages, neg_seq_unbalance,
+        summary_line_data) '''
+    if r[3] is None:
+        return 0.
+    Z21 = r[3]['Zsum_s'][2, 1]
+    if not as_str:
+        return abs(Z21)
+    else:
+        return 'Z21: {:.4f} Ohms'.format(Polar(Z21))
+Z21_magnitude.description = 'Z21 magnitude'
+Z21_magnitude.units = 'Ohms'
+
+
+def Z_imbalance(r, as_str=False):
+    ''' r is assumed to be (ph_voltages, seq_voltages, neg_seq_unbalance,
+        summary_line_data) '''
+    if r[3] is None:
+        return 0.
+    rtn = lineZ.impedance_imbalance(r[3]['Zsum'])
+    if not as_str:
+        return rtn
+    else:
+        Zph = np.absolute(r[3]['Zsum'].dot(lineZ.Apos))
+        return 'Impedance imbalance: {} {:.4f} %'.format(Zph, rtn)
+Z_imbalance.description = 'Impedance imbalance'
+Z_imbalance.units = '%'
+
 #criteria = [max_neg_seq_unbalance, avg_neg_seq_unbalance]
-criteria = [max_neg_seq_unbalance, avg_neg_seq_unbalance]
-criteria_weights = [1., 1.] # Weight avg. more to scale it up.
+criteria = [max_neg_seq_unbalance,
+            avg_neg_seq_unbalance,
+            Z21_magnitude,
+            Z_imbalance]
+criteria_weights = [1., 1., 0., 10.] # Weight avg. more to scale it up.
 
 # =============================================================================
 # Without L1241 in model.
 # ATP LIS file is saved from ATPDraw run and should not be over-written.
 
-r_noL1241 = pyATP.process_SS_bus_voltages(proj_dir + 'L1241Phasing_noL1241.lis',
-                                          buses, RMS_scale = True)
-ph_voltages, seq_voltages, neg_seq_unbalance = r_noL1241
+ph_voltages, seq_voltages, neg_seq_unbalance = pyATP.process_SS_bus_voltages(
+    proj_dir + 'L1241Phasing_noL1241.lis', buses, RMS_scale = True)
+r_noL1241 = ph_voltages, seq_voltages, neg_seq_unbalance, None
 print('-'*80)
 print('Without L1241 in the model:')
 print('Phase voltages and negative-sequence unbalance voltage')
@@ -203,7 +236,15 @@ for atp_filename in atp_filenames:
     pyATP.run_ATP(ATP_file)
     
     ph_voltages, seq_voltages, neg_seq_unbalance = pyATP.process_SS_bus_voltages(LIS_file, buses, RMS_scale = True)
-    r_base['base'][atp_filename] = ((ph_voltages, seq_voltages, neg_seq_unbalance),)
+
+    # Read in line impedance parameters from PCH files
+    _, summary_data_dict = pyATP.get_line_params_from_pch(
+        tmp_dir, ['L40A1', 'L40A2', 'L40A3'] + section_ATPname)
+
+    r_base['base'][atp_filename] = ((ph_voltages,
+                                     seq_voltages,
+                                     neg_seq_unbalance,
+                                     summary_data_dict),)
     
     for n, b in enumerate(buses):
         print('%6s : %s, %.6f' % (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)), neg_seq_unbalance[n]))
@@ -227,7 +268,7 @@ for atp_filename in atp_filenames:
                 line_const = tmp_dir + s + '.dat'
                 
                 with open(line_const, 'r') as f:
-                    inlines = f.readlines()
+                    inlines = f.read().splitlines()
                 line_data = pyATP.LineConstCards()
                 line_data.read(inlines)
                 
@@ -254,12 +295,20 @@ for atp_filename in atp_filenames:
             # Run main ATP model with modified line sections
             pyATP.run_ATP(ATP_file)
             ph_voltages, seq_voltages, neg_seq_unbalance = pyATP.process_SS_bus_voltages(LIS_file, buses)
+
+            # Read in line impedance parameters from PCH files
+            _, summary_data_dict = pyATP.get_line_params_from_pch(
+                tmp_dir, ['L40A1', 'L40A2', 'L40A3'] + section_ATPname)
+
             
             # Save results to array
             #results.append((n, l, (ph_voltages, seq_voltages, neg_seq_unbalance)))
     
     
-            results_dict[l][atp_filename] = ((ph_voltages, seq_voltages, neg_seq_unbalance),)
+            results_dict[l][atp_filename] = ((ph_voltages,
+                                              seq_voltages,
+                                              neg_seq_unbalance,
+                                              summary_data_dict),)
     
 # =============================================================================
 # Filter to non-dominated results across all models.
@@ -279,7 +328,7 @@ print('With L1241 in the model, phased as in the model:')
 print('Phase voltages and negative-sequence unbalance voltage')
 for model in atp_filenames:
     print('Model: %s' % model)
-    ph_voltages, seq_voltages, neg_seq_unbalance = r_base['base'][model][0]
+    ph_voltages, seq_voltages, neg_seq_unbalance, _ = r_base['base'][model][0]
 
     for n, b in enumerate(buses):
         print('%6s : %s, %.6f' % (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)), neg_seq_unbalance[n]))
