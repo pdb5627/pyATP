@@ -9,7 +9,7 @@ from lineZ import Polar
 
 import sys, shutil, glob, itertools, codecs, os, math
 import numpy as np
-np.set_printoptions(linewidth=120)
+np.set_printoptions(linewidth=120, precision=4)
 
 # =============================================================================
 # Configure file names and bus names
@@ -235,16 +235,18 @@ for atp_filename in atp_filenames:
     print('Phase voltages and negative-sequence unbalance voltage')
     pyATP.run_ATP(ATP_file)
     
-    ph_voltages, seq_voltages, neg_seq_unbalance = pyATP.process_SS_bus_voltages(LIS_file, buses, RMS_scale = True)
+    ph_voltages, seq_voltages, neg_seq_unbalance = \
+        pyATP.process_SS_bus_voltages(LIS_file, buses, RMS_scale=True)
 
     # Read in line impedance parameters from PCH files
-    _, summary_data_dict = pyATP.get_line_params_from_pch(
+    seg_data_dict, summary_data_dict = pyATP.get_line_params_from_pch(
         tmp_dir, section_ATPname)
 
     r_base['base'][atp_filename] = ((ph_voltages,
                                      seq_voltages,
                                      neg_seq_unbalance,
-                                     summary_data_dict),)
+                                     summary_data_dict,
+                                     seg_data_dict),)
     
     for n, b in enumerate(buses):
         print('%6s : %s, %.6f' % (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)), neg_seq_unbalance[n]))
@@ -294,21 +296,18 @@ for atp_filename in atp_filenames:
                 
             # Run main ATP model with modified line sections
             pyATP.run_ATP(ATP_file)
-            ph_voltages, seq_voltages, neg_seq_unbalance = pyATP.process_SS_bus_voltages(LIS_file, buses)
+            ph_voltages, seq_voltages, neg_seq_unbalance = \
+                pyATP.process_SS_bus_voltages(LIS_file, buses, RMS_scale=True)
 
             # Read in line impedance parameters from PCH files
-            _, summary_data_dict = pyATP.get_line_params_from_pch(
-                tmp_dir, section_ATPname)
+            seg_data_dict, summary_data_dict = \
+                pyATP.get_line_params_from_pch(tmp_dir, section_ATPname)
 
-            
-            # Save results to array
-            #results.append((n, l, (ph_voltages, seq_voltages, neg_seq_unbalance)))
-    
-    
             results_dict[l][atp_filename] = ((ph_voltages,
                                               seq_voltages,
                                               neg_seq_unbalance,
-                                              summary_data_dict),)
+                                              summary_data_dict,
+                                              seg_data_dict),)
     
 # =============================================================================
 # Filter to non-dominated results across all models.
@@ -328,7 +327,8 @@ print('With L1241 in the model, phased as in the model:')
 print('Phase voltages and negative-sequence unbalance voltage')
 for model in atp_filenames:
     print('Model: %s' % model)
-    ph_voltages, seq_voltages, neg_seq_unbalance, _ = r_base['base'][model][0]
+    ph_voltages, seq_voltages, neg_seq_unbalance, _, _ = \
+        r_base['base'][model][0]
 
     for n, b in enumerate(buses):
         print('%6s : %s, %.6f' % (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)), neg_seq_unbalance[n]))
@@ -358,23 +358,64 @@ for soln, wt in sorted(zip(soln_list, weighted_results), key=lambda k: k[1]):
         for c in criteria:
             print('%s, %s'% (model, c(r[model][0], as_str=True)))
     print('Weighted results: %.4f' % wt)
-    #continue
-    
-    #for n, b in enumerate(buses):
-    #    print('%6s : %s, %.6f' % (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)), neg_seq_unbalance[n]))
-    
-    #phasing_info = lineZ.Pt_list_to_phasing(soln, str_types, Pos, Phase_list=('A', 'B', 'C'))
-    #print('Line Sections:')
-    #for n, phasing, s_start, s_end in zip(range(1,len(sections)), phasing_info, sections[:-1], sections[1:]):
-    #    print(('Mile %.3f: %s' % (s_start[0], s_start[2])) + (' (Transposition)' if n > 1 and sections[n-2][1].rstrip('_*') == sections[n-1][1].rstrip('_*') and r[1][n-1]!=(0, 1, 2) else ''))
-    #    print('Section %d: %s (%.3f mi)' % (n, Str_names[s_start[1].rstrip('_*')], s_end[0] - s_start[0]))
-    #    print(phasing)
-    #print('Mile %.3f: %s' % (s_end[0], s_end[2]))
 
 print('-'*80)
     
 # Print dominated solutions. 
-dominated_solns = [soln for soln in all_transitions_list if soln not in filtered_results_dict ]
+dominated_solns = [soln for soln in all_transitions_list
+                   if soln not in filtered_results_dict ]
 print('Dominated solutions:')
 for soln in dominated_solns:
     print(soln[0], soln[5])
+# =============================================================================
+# Summarize selected solution
+selected_soln = ((0, 1, 2), (1, 0, 2))
+if selected_soln is not None:
+    full_soln_tuple = tuple([s for s in results_dict
+                             if (s[0], s[5]) == selected_soln][0])
+    r = results_dict[full_soln_tuple]
+    summary_data_dict = r[atp_filenames[0]][0][3]
+    seg_data_dict = r[atp_filenames[0]][0][4]
+
+    print('-'*80)
+    print('Selected solution: ', selected_soln)
+
+    for atp_filename in atp_filenames:
+        r = results_dict[full_soln_tuple][atp_filename]
+        ph_voltages = r[0][0]
+        seq_voltages = r[0][1]
+        neg_seq_unbalance = r[0][2]
+        print('Bus p.u. voltages and % negative-sequence voltage')
+        for n, b in enumerate(buses):
+           print('%6s : %s, %.3f%%' %
+                 (b, np.abs(ph_voltages[:,n].T)/(115e3/np.sqrt(3.)),
+                  neg_seq_unbalance[n]))
+
+    print('Total line impedance:')
+    Z_s = summary_data_dict['Zsum_s']
+    print('Z1 = {:.4f}, Z0 = {:.4f}, Z21 = {:.4f}' \
+              .format(Z_s[1, 1],
+                      Z_s[0, 0],
+                      Polar(Z_s[2, 1])))
+    phasing_info = lineZ.Pt_list_to_phasing(full_soln_tuple, str_types, Pos,
+                                            Phase_list=('A', 'B', 'C'))
+    print('Line Sections:')
+    for n, phasing, s_start, s_end in zip(range(1,len(sections)), phasing_info,
+                                          sections[:-1], sections[1:]):
+        print(('Mile %.3f: %s' % (s_start[0], s_start[2]))
+              + (' (Transposition)'
+                 if n > 1
+                    and sections[n-2][1].rstrip('_*')
+                        == sections[n-1][1].rstrip('_*')
+                    and full_soln_tuple[n-1]!=(0, 1, 2)
+                 else ''))
+        print('Section %d: %s (%.3f mi)' %
+              (n, Str_names[s_start[1].rstrip('_*')],
+               s_end[0] - s_start[0]))
+        print(phasing)
+        Z_s = lineZ.ph_to_seq_m(seg_data_dict[section_ATPname[n-1]].Z)
+        print('    Z1 = {:.4f}, Z0 = {:.4f}, Z21 = {:.4f}' \
+              .format(Z_s[1, 1],
+                      Z_s[0, 0],
+                      Polar(Z_s[2, 1])))
+    print('Mile %.3f: %s' % (s_end[0], s_end[2]))
