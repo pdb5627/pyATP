@@ -7,6 +7,11 @@ import argparse
 import cmath
 import pickle
 import time
+import sys
+import math
+import contextlib
+
+import numpy as np
 
 import lineZ
 import pyATP
@@ -14,11 +19,8 @@ from lineZ import Polar
 
 time_fun = time.clock
 
-import sys, math
-import numpy as np
 np.set_printoptions(linewidth=120)
 
-import contextlib
 
 @contextlib.contextmanager
 def printoptions(*args, **kwargs):
@@ -113,6 +115,7 @@ def set_angles(line_defs, bus, buses_set=None):
         set_angles(line_defs, rem_bus, buses_set)
 
     return buses_set
+
 
 def main(argv=None):
     start_time = time_fun()
@@ -230,7 +233,6 @@ def main(argv=None):
     for line in sorted(line_defs):
         l = line_defs[line]
         T = l['ABCD']
-        Z = l['Zeq']
         Z_s = l['Zeq_s']
         bus0 = l['terminals'][0]
         bus1 = l['terminals'][1]
@@ -239,12 +241,12 @@ def main(argv=None):
         print('=' * 80)
         print(line)
         # print(l['Zeq'])
-        print('Z1 = {:.4f}, Z0 = {:.4f}, Z21 = {:.4f}' \
+        print('Z1 = {:.4f}, Z0 = {:.4f}, Z21 = {:.4f}'
               .format(Z_s[1, 1],
                       Z_s[0, 0],
                       Polar(Z_s[2, 1])))
 
-        with printoptions(precision=2, suppress=True, linewidth=50,
+        with printoptions(precision=3, suppress=True, linewidth=50,
                           formatter={'complex_kind': polar_formatter}):
             print('Phase impedances & imbalance: {}, {:.2f}%'.format(
                   lineZ.phase_impedances(l['Zeq']),
@@ -280,7 +282,7 @@ def main(argv=None):
                                    l['term0_atp_branch'][
                                        'seq_br_currents']))
         #
-        X1_s_atp[3:] *= -1 # Reverse polarity of I1
+        X1_s_atp[3:] *= -1  # Reverse polarity of I1
         X2_s_atp = np.concatenate((l['term1_atp_bus']['seq_voltages'],
                                    l['term1_atp_branch'][
                                        'seq_br_currents']))
@@ -297,12 +299,17 @@ def main(argv=None):
                     print('Voltages (V): ', X1_s_m[:3])
                     print('Current  (A): ', X1_s_m[3:])
 
-                print('From ATP model for Terminal %s' % l['terminals'][0])
-                print('Voltages (V): ', l['term0_atp_bus']['ph_voltages'])
-                print('Current  (A): ', l['term0_atp_branch']['ph_br_currents'])
+                print('From ATP model for Terminal %s'
+                      % l['terminals'][0])
+                print('Voltages (V): ',
+                      l['term0_atp_bus']['ph_voltages'])
+                print('Current  (A): ',
+                      l['term0_atp_branch']['ph_br_currents'])
                 print('Symmetrical Components')
-                print('Voltages (V): ', l['term0_atp_bus']['seq_voltages'])
-                print('Current  (A): ', l['term0_atp_branch']['seq_br_currents'])
+                print('Voltages (V): ',
+                      l['term0_atp_bus']['seq_voltages'])
+                print('Current  (A): ',
+                      l['term0_atp_branch']['seq_br_currents'])
 
                 print('-' * 80)
 
@@ -315,13 +322,17 @@ def main(argv=None):
                     print('Voltages (V): ', X2_s_m[:3])
                     print('Current  (A): ', X2_s_m[3:])
 
-                print('From ATP model for Terminal %s' % l['terminals'][1])
-                print('Voltages (V): ', l['term1_atp_bus']['ph_voltages'])
-                print('Current  (A): ', l['term1_atp_branch']['ph_br_currents'])
+                print('From ATP model for Terminal %s' %
+                      l['terminals'][1])
+                print('Voltages (V): ',
+                      l['term1_atp_bus']['ph_voltages'])
+                print('Current  (A): ',
+                      l['term1_atp_branch']['ph_br_currents'])
                 print('Symmetrical Components')
-                print('Voltages (V): ', l['term1_atp_bus']['seq_voltages'])
-                print('Current  (A): ', l['term1_atp_branch']['seq_br_currents'])
-
+                print('Voltages (V): ',
+                      l['term1_atp_bus']['seq_voltages'])
+                print('Current  (A): ',
+                      l['term1_atp_branch']['seq_br_currents'])
 
                 if have_met_1 and have_met_2:
                     print('-' * 80)
@@ -332,14 +343,15 @@ def main(argv=None):
                           % l['terminals'][1])
                     print('Phase       ', np.angle(X2_ph, deg=True)
                           - np.angle(X2_ph_m, deg=True))
-                    print('Symm. Comp. ', np.angle(lineZ.ph_to_seq_v(X2_ph), deg=True)
+                    print('Symm. Comp. ', np.angle(lineZ.ph_to_seq_v(X2_ph),
+                                                   deg=True)
                           - np.angle(X2_s_m, deg=True))
 
             if False:
                 print('-' * 80)
                 print('')
-                print('Comparison to ATP          Relay MET       ATP Steady-State'
-                      '      Difference')
+                print('Comparison to ATP          Relay MET'
+                      '       ATP Steady-State      Difference')
                 print(' '*23 + '-'*17 + '  ' + '-'*17 + '  ' + '-'*17)
                 print('{:<23}{:7.2f}  {:7.2f}  {:7.2f}'
                       .format(bus0 + ' Bus V2:',
@@ -374,11 +386,11 @@ def main(argv=None):
                     # Current at both ends should be very similar unless the
                     # line is long or energized at EHV.
                     X1_s_m = X2_s_m
-                    X1_s_m[3:] *= -1 # Invert current
+                    X1_s_m[3:] *= -1  # Invert current
                     X1_s_atp = X2_s_atp
                     X1_s_atp[3:] *= -1
 
-                X1_s_diff =X1_s_atp - X1_s_m
+                X1_s_diff = X1_s_atp - X1_s_m
 
                 print('I1:                    {:7.2f}  {:7.2f}  {:7.2f}'
                       .format(Polar(X1_s_m[4]),
@@ -417,7 +429,7 @@ def main(argv=None):
                                                 + X1_s_m[4] * Z_s[2, 1])),
                               Polar(vdrop2_atp - (X1_s_atp[5] * Z_s[2, 2]
                                                   + X1_s_atp[4] * Z_s[2, 1]))))
-
+    print('')
     print('='*80)
     print('')
     print("--- Completed in %s seconds ---" % (time_fun() - start_time))
