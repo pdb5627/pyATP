@@ -1,0 +1,17 @@
+BEGIN NEW DATA CASE
+LINE CONSTANTS
+$ERASE
+BRANCH  IN___AOUT__AIN___BOUT__BIN___COUT__C
+ENGLISH
+  1  0.0   .0983 0    .389   1.196     0.0     92.     45.     18.   0.0       2
+  2  0.0   .0983 0    .389   1.196    -30.     92.     45.     18.   0.0       2
+  3  0.0   .0983 0    .389   1.196     30.     92.     45.     18.   0.0       2
+  0  0.0   .6746 0   .4751    .614  -22.58    124.     98.     0.0   0.0       0
+  0  0.0    4.74 0    1.28    .435   22.58    124.     98.     0.0   0.0       0
+BLANK CARD ENDING CONDUCTOR CARDS
+     50.       60.           000010 010000 0    100.     0        44
+$PUNCH
+BLANK CARD ENDING FREQUENCY CARDS
+BLANK CARD ENDING LINE CONSTANT
+BEGIN NEW DATA CASE
+BLANK CARD
