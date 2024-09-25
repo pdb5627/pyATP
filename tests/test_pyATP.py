@@ -11,6 +11,7 @@ from __future__ import print_function, unicode_literals
 
 import pytest
 
+from pathlib import Path
 import os
 
 
@@ -19,8 +20,9 @@ import lineZ
 import numpy as np
 
 
-ATP_TEST_DIR = r'C:\Users\pdbrown\Documents\ATPdata\work\Test\\'
-ATP_TMP_FILENAME = 'test_tmp.atp'
+# Test files located in sub-directory of the test directory
+ATP_TEST_DIR = Path(__file__).parent / "TestCases"
+ATP_TMP_FILENAME = 'TEST_TMP.ATP'
 
 def assert_round_equals(n1, n2, **kwargs):
     if isinstance(n1, dict):
@@ -41,21 +43,21 @@ def assert_round_equals(n1, n2, **kwargs):
 
 @pytest.mark.parametrize('ATP_template, current_key, switch_key, '
                          'in_port, out_port, atp_segs',
-                         [('Test.atp', '5432.1', '-7.654',
+                         [('TEST.ATP', '5432.1', '-7.654',
                            ('SRC', 'S0'), ('S1', 'TERRA'), ['LATIC', 'LATIC']),
-                          ('Test2.atp', '5432.1', '-7.654',
+                          ('TEST2.ATP', '5432.1', '-7.654',
                            ('SRC', 'S0'), ('S1', 'TERRA'), ['LATIC'])
                           ])
 def test_extract_ABCD(ATP_template, current_key, switch_key,
                  in_port, out_port, atp_segs):
-    ATP_file = ATP_TEST_DIR + ATP_template
+    ATP_file = ATP_TEST_DIR / ATP_template
 
     ABCD_atp = pyATP.extract_ABCD(ATP_file, ATP_TMP_FILENAME, current_key,
                                   switch_key, in_port, out_port)
 
     params = []
     for seg in atp_segs:
-        with open(os.path.join(ATP_TEST_DIR, seg + '.pch')) as pch_file:
+        with open(os.path.join(ATP_TEST_DIR, seg.lower() + '.pch')) as pch_file:
             pch_lines = pch_file.readlines()
             params_pch = pyATP.LineConstPCHCards()
             params_pch.read(pch_lines)

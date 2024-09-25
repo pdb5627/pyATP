@@ -1,10 +1,7 @@
-#! /usr/bin/python
 '''
 Module of utility functions to drive ATP from Python and extract results
 At this time, only steady-state result extraction is supported.
 '''
-
-from __future__ import print_function, unicode_literals
 
 from math import sqrt
 import pickle
@@ -26,11 +23,21 @@ cdtype = np.dtype('complex'+str(2*nbits))
 import text_data_cards as tdc
 
 import itertools, copy, os
+from pathlib import Path
+import tempfile
+import functools
 
 import subprocess, re, csv, codecs, shutil
 
-ATP_path = 'C:\ATP\gigmingw'
-ATP_exe = 'runATP_G.bat'
+
+@functools.cache
+def filesystem_is_case_sensitive():
+    with tempfile.NamedTemporaryFile(prefix='TmP') as tmp_file:
+        return(not os.path.exists(tmp_file.name.lower()))
+
+
+ATP_path = Path('~/atplinux').expanduser()
+ATP_exe = 'run_tpbig.sh'
 
 be_quiet = True
 
@@ -38,14 +45,32 @@ def run_ATP(ATP_file, quiet=None):
     kwargs = {}
     if quiet is not None and quiet or quiet is None and be_quiet:
         kwargs['stdout'] = open(os.devnull, 'w')
-    rtn = subprocess.call((os.path.join(ATP_path, ATP_exe), ATP_file), **kwargs)
+    # Problems on Linux, due to case-sensitive filenames:
+    # - ATP makes the filename all caps, which can result in opening a DIFFERENT file
+    #   Solution: Only use an ALL CAPS filename. Error otherwise.
+    ATP_file = Path(ATP_file)
+    if not ATP_file.exists:
+        raise OSError(f"Specified ATP file '{ATP_file}' does not exist.")
+
+    ATP_fdir, ATP_fname = ATP_file.parent, ATP_file.name
+
+    if filesystem_is_case_sensitive() and str(ATP_fname).upper() != str(ATP_fname):
+        raise RuntimeError(f"Specified ATP file '{ATP_fname}' is not all caps.")
+
+    # Change to directory of ATP file
+    # This allows paths to files referenced by INCLUDE to be resolved relative to the ATP file
+    # It also means tmp files made by ATP will also get dropped there.
+    kwargs["cwd"] = ATP_fdir
+
+    rtn = subprocess.call((os.path.join(ATP_path, ATP_exe), ATP_fname), **kwargs)
     
 def atp_basename(ATP_file):
     '''
     Returns the base filename corresponding to the ATP filename provided.
     It basically just removes the .atp from the end.
     '''
-    return re.match('(.*)\.atp$',ATP_file, flags=re.I).group(1)
+    ATP_file = Path(ATP_file)
+    return ATP_file.with_suffix('')
 
 def lis_filename(ATP_file):
     '''
@@ -53,7 +78,9 @@ def lis_filename(ATP_file):
     This does not verify that the LIS file exists or that it is in the expected
     format.
     '''
-    return atp_basename(ATP_file) + '.lis'
+    # It seems that at least the atplinux version writes to a *lowercase* filename
+    ATP_file = Path(ATP_file)
+    return ATP_file.with_stem(ATP_file.stem.lower()).with_suffix(".lis")
     
 def replace_text(ATP_file, old_text, new_text, outfile=None, n=None):
     '''
@@ -254,10 +281,10 @@ def output_ss_file(LIS_file, SS_file=None, pickle_file=None,
     bus_data = {}
     
     if SS_file is None:
-        SS_file = re.match('(.*)\.lis$',LIS_file, flags=re.I).group(1) + '_ss.csv'
+        SS_file = re.match(r'(.*)\.lis$',LIS_file, flags=re.I).group(1) + '_ss.csv'
 
     if pickle_file is None:
-        pickle_file = re.match('(.*)\.lis$',LIS_file, flags=re.I).group(1) + '_ss.p'
+        pickle_file = re.match(r'(.*)\.lis$',LIS_file, flags=re.I).group(1) + '_ss.p'
 
     with open(pickle_file, 'wb') as binfile:
         pickle.dump(data_list, binfile)
@@ -386,7 +413,7 @@ def get_line_params_from_pch(atp_pch_folder, seg_list):
             ABCD_s, Zeq_s, Yeq_s: Symmetrical components of prev. three."""
     seg_data_dict = {}
     for seg in seg_list:
-        with open(os.path.join(atp_pch_folder, seg + '.pch')) as \
+        with open(os.path.join(atp_pch_folder, seg.lower() + '.pch')) as \
                 pch_file:
             pch_lines = pch_file.readlines()
             params = LineConstPCHCards()
