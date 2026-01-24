@@ -1,0 +1,6 @@
+# Rest of the file coming soon!!
+
+[tool.pytest.ini_options]
+
+addopts = "--pdbcls=IPython.terminal.debugger:Pdb"
+required_plugins = "pytest-mock"
