@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-test_lineZ
+test_sequence_components
 ----------------------------------
 
-Tests for `lineZ` module.
+Tests for `atp_utils.sequence_components` module.
 """
 
 from __future__ import print_function, unicode_literals
@@ -13,8 +13,7 @@ from __future__ import print_function, unicode_literals
 import pytest
 
 
-import pyATP
-import lineZ
+from atp_utils import sequence_components
 import numpy as np
 
 
@@ -34,7 +33,7 @@ def assert_round_equals(n1, n2, **kwargs):
         assert n1 == n2
 
 
-balanced_three_phase = np.array([1., lineZ.alpha**2, lineZ.alpha])
+balanced_three_phase = np.array([1., sequence_components.alpha**2, sequence_components.alpha])
 balanced_three_phase_seq = np.array([0., 1., 0])
 balanced_double_three_phase = np.tile(balanced_three_phase, 2)
 balanced_double_three_phase_seq = np.tile(balanced_three_phase_seq, 2)
@@ -58,13 +57,13 @@ Z_s_BergenVittal = np.array([[28.74 + 155.82j, 1.46 - 0.84j, -1.46 - 0.84j],
                           (Z_abc_BergenVittal, Z_s_BergenVittal)])
 class TestPhToSeq:
     def test_ph_to_seq(self, qty_ph, qty_seq):
-        assert_round_equals(lineZ.ph_to_seq_m(qty_ph), qty_seq)
+        assert_round_equals(sequence_components.ph_to_seq_m(qty_ph), qty_seq)
 
     def test_seq_to_ph(self, qty_seq, qty_ph):
-        assert_round_equals(lineZ.ph_to_seq_m(qty_ph), qty_seq)
+        assert_round_equals(sequence_components.ph_to_seq_m(qty_ph), qty_seq)
 
     def test_round_trip_ph(self, qty_seq, qty_ph):
-        assert_round_equals(lineZ.seq_to_ph_m(lineZ.ph_to_seq_m(qty_ph)), qty_ph)
+        assert_round_equals(sequence_components.seq_to_ph_m(sequence_components.ph_to_seq_m(qty_ph)), qty_ph)
 
     def test_round_trip_seq(self, qty_seq, qty_ph):
-        assert_round_equals(lineZ.ph_to_seq_m(lineZ.seq_to_ph_m(qty_seq)), qty_seq)
+        assert_round_equals(sequence_components.ph_to_seq_m(sequence_components.seq_to_ph_m(qty_seq)), qty_seq)

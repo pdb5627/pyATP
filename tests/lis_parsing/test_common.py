@@ -1,6 +1,6 @@
 import json
 import pytest
-import pyATP.lis_parsing.common as lc
+import atp_utils.lis_parsing.common as lc
 
 class TestLoggedVariableLayout:
     @pytest.fixture(scope="class")
@@ -10,16 +10,16 @@ class TestLoggedVariableLayout:
     def test_structure(self, logged_vars):
         # Each entry is (from_node, to_node, phase, var_type)
         assert all(len(v) == 4 for v in logged_vars)
-        
+
     def test_invariants(self, logged_vars):
         for from_node, to_node, phase, var_type in logged_vars:
             assert isinstance(from_node, str)
             assert isinstance(to_node, str)
             assert var_type in ("vp", "ie")
-    
+
             if phase == "":
                 continue
-    
+
             assert phase in ("A", "B", "C")
 
     def test_counts_by_type(self, logged_vars):

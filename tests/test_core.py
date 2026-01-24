@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-test_pyATP
+test_core
 ----------------------------------
 
-Tests for `pyATP` module.
+Tests for `atp_utils.core` module.
 """
 from __future__ import print_function, unicode_literals
 
@@ -15,8 +15,8 @@ from pathlib import Path
 import os
 
 
-import pyATP
-import lineZ
+import atp_utils
+from atp_utils import sequence_components
 import numpy as np
 
 
@@ -52,23 +52,23 @@ def test_extract_ABCD(ATP_template, current_key, switch_key,
                  in_port, out_port, atp_segs):
     ATP_file = ATP_TEST_DIR / ATP_template
 
-    ABCD_atp = pyATP.extract_ABCD(ATP_file, ATP_TMP_FILENAME, current_key,
+    ABCD_atp = atp_utils.extract_ABCD(ATP_file, ATP_TMP_FILENAME, current_key,
                                   switch_key, in_port, out_port)
 
     params = []
     for seg in atp_segs:
         with open(os.path.join(ATP_TEST_DIR, seg.lower() + '.pch')) as pch_file:
             pch_lines = pch_file.readlines()
-            params_pch = pyATP.LineConstPCHCards()
+            params_pch = atp_utils.LineConstPCHCards()
             params_pch.read(pch_lines)
             params.append(params_pch)
 
     ABCD_pch_list = [p.ABCD for p in params]
-    ABCD_eq = lineZ.combine_ABCD(ABCD_pch_list)
+    ABCD_eq = sequence_components.combine_ABCD(ABCD_pch_list)
     assert_round_equals(ABCD_atp, ABCD_eq)
 
 
-tc_line_const_pch = pyATP.LineConstPCHCards()
+tc_line_const_pch = atp_utils.LineConstPCHCards()
 
 tt_line_const_pch = """
 C  <++++++>  Cards punched by support routine on  05-May-16  14:58:52  <++++++>
@@ -163,4 +163,4 @@ class TestParseCard:
 
     def test_ABCD(self, test_card, card_text, values_dict_list, Z, Y):
         test_card.read(card_text, read_all_or_none=False)
-        assert_round_equals(test_card.ABCD, lineZ.ZY_to_ABCD(Z, Y))
+        assert_round_equals(test_card.ABCD, sequence_components.ZY_to_ABCD(Z, Y))
