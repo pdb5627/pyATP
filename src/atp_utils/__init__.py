@@ -22,11 +22,14 @@ from .core import (
     process_SS_bus_voltages,
     process_SS_branch_currents,
     get_line_params_from_pch,
-    LineConstCards,
-    LineConstPCHCards,
     make_ATPline_lib,
     ATP_path,
     ATP_exe,
+)
+
+from .line_const_parsing import (
+    LineConstCards,
+    LineConstPCHCards,
 )
 from .read_pl4 import read_pl4, pl4_to_dataframe
 from . import lis_parsing
