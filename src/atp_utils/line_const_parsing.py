@@ -87,11 +87,6 @@ class LineConstPCHCards(tdc.DataCardStack):
         line and the way ATPDraw runs the case. NOTE: L and C parameters will
         be returned in units of Henries and Siemens. Conversion will be based
         the $UNITS card values.
-        assumed to be in the file at nominal frequency. For 60 Hz,
-        there should be a $UNITS card with values 60., 60.. This object will
-        still read the data otherwise, but matrices may have mH or uF instead of
-        Ohms and microSiemens.
-
     """
     def __init__(self):
         end_record = tdc.DataCardAlternates([
@@ -113,7 +108,11 @@ class LineConstPCHCards(tdc.DataCardStack):
         self.Y = None
 
     def get_ZY(self):
-        """ Convert R, L, C parameters to Z and Y matrices"""
+        """ Convert R, L, C parameters to Z and Y arrays.
+        Z and Y are given at the frequency provided in XOPT (if any),
+        otherwise are calculated at 60 Hz.
+        Also populates R, L, and C as numpy arrays.
+        """
         # First compute the number of phases
         n = len(self.data['RLC_params'])
         # n = (n_ph+1)*n_ph/2
@@ -124,9 +123,11 @@ class LineConstPCHCards(tdc.DataCardStack):
         if self.data["units"]["XOPT"] > 0:
             # Xl is given in Ohms: Xl = ω*L => L = Xl / ω
             L_conversion = 1 / (2 * np.pi * self.data["units"]["XOPT"])
+            ω = 2*np.pi*self.data["units"]["XOPT"]
         else:
             # L is given in mH
             L_conversion = 1e-3
+            ω = 2*np.pi*60.
         if self.data["units"]["COPT"] > 0:
             # Bc is given in μS: Bc = ω*C => C = Bc / ω
             C_conversion = 1e-6 / (2 * np.pi * self.data["units"]["COPT"])
@@ -134,18 +135,39 @@ class LineConstPCHCards(tdc.DataCardStack):
             # C is given in μF
             C_conversion = 1e-6
 
-        Z = np.zeros((n_ph, n_ph), dtype=cdtype)
-        Y = np.zeros((n_ph, n_ph), dtype=cdtype)
+        R = np.zeros((n_ph, n_ph), dtype=fdtype)
+        L = np.zeros((n_ph, n_ph), dtype=fdtype)
+        C = np.zeros((n_ph, n_ph), dtype=fdtype)
+
         idx = 0
         for r in range(n_ph):
             for c in range(r+1):
-                Z[r, c] = Z[c, r] = (self.data['RLC_params'][idx]['R'] +
-                                     1j*L_conversion*self.data['RLC_params'][idx]['L'])
-                # C assumed to be in microSiemens. (Ref R.B. IV.B.3)
-                # C value is total capacitance, which ATP then divides by
-                # two for the pi model.
-                Y[r, c] = Y[c, r] = 1j*C_conversion*self.data['RLC_params'][idx]['C']
+                R[r, c] = R[c, r] = self.data['RLC_params'][idx]['R']
+                L[r, c] = L[c, r] = L_conversion*self.data['RLC_params'][idx]['L']
+                C[r, c] = C[c, r] = C_conversion*self.data['RLC_params'][idx]['C']
                 idx += 1
+
+
+        Z = R + 1j*ω*L
+        Y = 1j*ω*C
+        self.data["R"] = R
+        self.data["L"] = L
+        self.data["C"] = C
+        self.data["Z"] = Z
+        self.data["Y"] = Y
         self.Z = Z
         self.Y = Y
         return Z, Y
+
+
+_line_const_pch_cards = LineConstPCHCards()
+
+
+def read_pch_zy(fname):
+    """ Read and parse Z and Y matrices from PCH file with name `fname`."""
+    with open(fname) as f:
+            lines = f.readlines()
+
+    _line_const_pch_cards.read(lines)
+    Z, Y = _line_const_pch_cards.get_ZY()
+    return Z, Y

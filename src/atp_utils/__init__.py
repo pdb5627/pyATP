@@ -30,6 +30,7 @@ from .core import (
 from .line_const_parsing import (
     LineConstCards,
     LineConstPCHCards,
+    read_pch_zy,
 )
 from .read_pl4 import read_pl4, pl4_to_dataframe
 from . import lis_parsing
